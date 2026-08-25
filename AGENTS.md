@@ -115,6 +115,11 @@ Randomized reset/Monte Carlo считается wear evidence только по�
 perturbation вызывает healthy fall, paired trial целиком исключается из wear
 statistics и остаётся отдельным robustness stress-test.
 
+Primary wear protocol называется `deploy_exact` и использует нулевые pose/yaw/
+joint offsets. `stress_jitter` нельзя смешивать с lifetime statistics. Для
+uncertainty analysis при `deploy_exact` варьируй откалиброванные параметры
+damage law и actuator degradation, а не произвольное начальное состояние.
+
 ## 7. Failure definition
 
 Primary fall criterion:

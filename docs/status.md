@@ -36,6 +36,17 @@ Even `2 mm`, `0.5 deg` and `0.002 rad` perturbations can make the healthy policy
 fall around short-clip 8.3--8.6 s. These runs measure simulator/policy robustness,
 not wear, and are rejected by the healthy-control quality gate.
 
+Channel isolation with seed 1 showed that `2 mm` XY alone, `0.5 deg` yaw alone
+and `0.002 rad` joint jitter alone each completed. The failure appears only for
+some combined offsets, so it is a nonlinear policy robustness boundary rather
+than one broken reset field. Primary wear runs now use the explicit
+`deploy_exact` protocol; combined perturbations are labeled `stress_jitter`.
+
+The `deploy_exact` regression gate then completed in five independent MJWarp
+processes with seeds 1--5: healthy `5/5`, floor-level falls `0/5`, all trials
+valid. This establishes the primary baseline path; it is a determinism check,
+not a five-sample lifetime distribution.
+
 ## Current decision
 
 Use `num_envs=1` as the reference simulator path. Parallelize independent processes across GPUs for throughput. Any future `nworld > 1` optimization must first pass an identical-world healthy-control test and a paired comparison against the single-world reference.

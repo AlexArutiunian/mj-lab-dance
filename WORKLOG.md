@@ -22,3 +22,6 @@
 - Re-ran corrected exact-start checkpoints: 0, 100k and 500k completed; conditional 1M/right-knee 0.3x fell at 2.76 s.
 - Re-ran exact-start dose points: right-knee 0.8x and 0.5x completed, while 0.3x fell.
 - Demonstrated that uncalibrated reset perturbations can make healthy trials fall around 8--10 s. These trials are now treated as robustness stress tests and excluded from wear statistics by the healthy gate.
+- Isolated reset channels: small XY-only, yaw-only and joint-only offsets each completed for seed 1; failures require some combined offsets and represent a nonlinear robustness boundary.
+- Added explicit `deploy_exact` versus `stress_jitter` result classification.
+- Passed a five-process `deploy_exact` healthy regression gate on seeds 1--5 with 5/5 successful and no floor-level falls.

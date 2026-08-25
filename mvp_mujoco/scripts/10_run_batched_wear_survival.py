@@ -207,6 +207,11 @@ def main() -> None:
     p.add_argument("--progress-interval-s", type=float, default=10.0)
     p.add_argument("--out-dir", type=Path, default=ROOT / "outputs" / "batched_wear_survival")
     args = p.parse_args()
+    reset_protocol = (
+        "stress_jitter"
+        if args.pose_xy_jitter_m > 0.0 or args.yaw_jitter_deg > 0.0 or args.joint_jitter_rad > 0.0
+        else "deploy_exact"
+    )
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -439,6 +444,7 @@ def main() -> None:
         if checkpoint == 0 and baseline_validation != "valid" and not args.allow_invalid_baseline:
             invalid_summary = {
                 "mode": "batched_wear_survival",
+                "reset_protocol": reset_protocol,
                 "valid": False,
                 "validation_error": baseline_validation,
                 "message": "Healthy-control batch is numerically contaminated; worn checkpoints were not evaluated.",
@@ -460,6 +466,7 @@ def main() -> None:
         "duration_s": duration,
         "device": args.device,
         "motion_start_time_s": float(args.motion_start_time_s),
+        "reset_protocol": reset_protocol,
         "alpha": alpha,
         "target_repetition": int(args.target_repetition),
         "target_scale": target_scale,

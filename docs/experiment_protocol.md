@@ -42,7 +42,22 @@ pelvis_z < 0.35 m AND torso_z < 0.30 m for >= 0.50 s
 
 Also report tracking loss, joint limit, actuator saturation, thermal limit, NaN/Inf and solver failure separately.
 
-## E. Statistical reporting
+## E. Reset protocols
+
+Primary wear sensitivity uses `deploy_exact`: the exact initial state of the
+real `RB+Y` clip, with no synthetic pose, yaw or joint offset. Repeated exact
+seeds are a determinism/regression gate, not Monte Carlo samples.
+
+`stress_jitter` may perturb the initial state, but its output is a policy and
+simulator robustness test. It is not a wear survival estimate unless the joint
+distribution of initial pose, orientation and joint error has been measured on
+the real robot. A healthy fall invalidates the complete paired trial.
+
+For lifetime uncertainty, vary calibrated wear-law and actuator parameters
+while retaining `deploy_exact`; do not manufacture a lifetime distribution by
+randomizing an uncalibrated initial state.
+
+## F. Statistical reporting
 
 Report:
 
@@ -56,7 +71,7 @@ Report:
 
 Do not report contaminated batch failures as robot survival statistics.
 
-## F. Acceleration
+## G. Acceleration
 
 Correctness-preserving order:
 

@@ -51,6 +51,14 @@
     {"repetitions": 500000, "weakest_torque_scale": 0.6085026044022711, "failed": false},
     {"repetitions": 1000000, "weakest_torque_scale": 0.29999948229543894, "failed": true, "failure_time_s": 2.76}
   ],
+  "deploy_exact_regression_gate": {
+    "independent_processes": 5,
+    "seeds": [1, 2, 3, 4, 5],
+    "successful": 5,
+    "failed": 0,
+    "status": "VALID",
+    "interpretation": "Determinism and exact-deploy baseline gate; repeated exact seeds are not Monte Carlo lifetime samples."
+  },
   "exact_start_dose_response": [
     {"right_knee_target_scale": 0.8, "failed": false},
     {"right_knee_target_scale": 0.5, "failed": false},
@@ -58,7 +66,7 @@
   ],
   "robustness_stress_test": {
     "status": "NOT_A_WEAR_SURVIVAL_ESTIMATE",
-    "reason": "Uncalibrated MJLab reset perturbations caused healthy-control falls around 8-10 seconds.",
+    "reason": "Some combined uncalibrated MJLab reset perturbations caused healthy-control falls around 8-10 seconds; isolated XY, yaw and joint channels each completed for seed 1.",
     "wear_trials_with_failed_healthy_controls_excluded": true
   },
   "interpretation": "Validated deterministic closed-loop sensitivity only. Repetition-to-torque-scale mapping is an uncalibrated assumption, and no physical one-million-dance lifetime or survival probability is claimed."

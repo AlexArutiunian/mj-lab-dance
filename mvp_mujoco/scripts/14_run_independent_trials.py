@@ -133,6 +133,11 @@ def main() -> None:
     args = p.parse_args()
     if args.trials < 1:
         raise ValueError("--trials must be positive")
+    reset_protocol = (
+        "stress_jitter"
+        if args.pose_xy_jitter_m > 0.0 or args.yaw_jitter_deg > 0.0 or args.joint_jitter_rad > 0.0
+        else "deploy_exact"
+    )
 
     devices = _parse_devices(args.devices)
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -204,7 +209,11 @@ def main() -> None:
 
     summary = {
         "mode": "independent_single_world_paired_trials",
-        "status": "VALIDATED_SINGLE_WORLD" if all(bool(x["valid"]) for x in trial_results) else "INVALID_TRIALS_PRESENT",
+        "status": "VALID" if all(bool(x["valid"]) for x in trial_results) else "INVALID_TRIALS_PRESENT",
+        "evidence_class": (
+            "EXACT_DEPLOY_REGRESSION" if reset_protocol == "deploy_exact" else "ROBUSTNESS_STRESS_TEST"
+        ),
+        "reset_protocol": reset_protocol,
         "model_status": "MODEL_ASSUMPTION_ONLY",
         "trials_requested": args.trials,
         "valid_trials": sum(bool(x["valid"]) for x in trial_results),
