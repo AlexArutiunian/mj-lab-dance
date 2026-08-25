@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.machinery
 import json
 import math
 import os
@@ -36,6 +37,7 @@ def _add_runtime_paths() -> None:
         old = os.environ.get("LD_LIBRARY_PATH", "")
         os.environ["LD_LIBRARY_PATH"] = ":".join(libs + ([old] if old else []))
     sys.path.insert(0, str(MJLAB_REPO))
+    sys.path.insert(0, str(ROOT))
 
 
 def _quat_wxyz_to_roll_pitch(q: np.ndarray) -> tuple[float, float]:
@@ -68,19 +70,9 @@ def _repetition_scales(
 
 
 def _apply_actuator_scales(raw_env, scales: np.ndarray) -> None:
-    sim = raw_env.sim
-    n = int(scales.shape[0])
-    nominal = sim.mj_model.actuator_forcerange[:n].copy()
-    scaled = nominal * scales[:, None]
-    sim.mj_model.actuator_forcerange[:n] = scaled
-    sim.mj_model.actuator_forcelimited[:n] = 1
+    from wearbench.mjlab_mapping import apply_joint_ordered_actuator_scales
 
-    device = torch.device(sim.device)
-    scaled_t = torch.as_tensor(scaled, dtype=sim.model.actuator_forcerange.dtype, device=device)
-    limited_t = torch.ones((n,), dtype=sim.model.actuator_forcelimited.dtype, device=device)
-    sim.model.actuator_forcerange[:n] = scaled_t
-    sim.model.actuator_forcelimited[:n] = limited_t
-    sim.create_graph()
+    apply_joint_ordered_actuator_scales(raw_env, scales)
 
 
 class OnnxPolicy:
@@ -141,9 +133,12 @@ def main() -> None:
     import mjlab.tasks  # noqa: F401
     import src.tasks  # noqa: F401
     from mjlab.envs import ManagerBasedRlEnv
-    from mjlab.rl import RslRlVecEnvWrapper
     from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
     from mjlab.tasks.tracking.mdp import MotionCommandCfg
+
+    runner_mod = importlib.machinery.SourceFileLoader(
+        "batched_wear_survival", str(ROOT / "scripts" / "10_run_batched_wear_survival.py")
+    ).load_module()
 
     p = argparse.ArgumentParser(description="Run dance_sim ONNX playback and write WearBench baseline_dance.npz.")
     p.add_argument("--task", default="Unitree-G1-Tracking-No-State-Estimation")
@@ -193,15 +188,20 @@ def main() -> None:
 
     policy = OnnxPolicy(args.policy.resolve())
     raw_env = ManagerBasedRlEnv(cfg=env_cfg, device=args.device, render_mode=None)
-    env = RslRlVecEnvWrapper(raw_env, clip_actions=agent_cfg.clip_actions)
+    runner_mod._configure_physics_origins(raw_env, "local")
+    env = runner_mod.FastPlayVecEnv(raw_env, clip_actions=agent_cfg.clip_actions)
     robot = raw_env.scene["robot"]
+    from wearbench.mjlab_mapping import build_mjlab_joint_actuator_map
+
+    mapping = build_mjlab_joint_actuator_map(raw_env)
     pelvis_body_id = list(robot.body_names).index("pelvis")
     torso_body_id = list(robot.body_names).index("torso_link")
 
     dt = float(raw_env.step_dt)
     steps = int(math.ceil(duration / dt))
-    joint_names = np.asarray(robot.joint_names, dtype=str)
-    actuator_names = np.asarray(robot.actuator_names, dtype=str)
+    joint_names = np.asarray(mapping.joint_names, dtype=str)
+    actuator_names = np.asarray(mapping.actuator_names, dtype=str)
+    actuator_forcerange = raw_env.sim.mj_model.actuator_forcerange[mapping.actuator_ids].copy()
     severity = np.zeros(len(joint_names), dtype=np.float64)
     health = np.ones(len(joint_names), dtype=np.float64)
     torque_scale = np.ones(len(joint_names), dtype=np.float64)
@@ -238,11 +238,11 @@ def main() -> None:
     bad_count = 0
     hold_steps = max(1, int(round(hold_s / dt)))
 
-    obs = env.get_observations()
+    obs = env.reset(seed=args.seed)
     started = time.perf_counter()
     for i in range(steps):
         actions = policy(obs)
-        obs, _, _, _ = env.step(actions)
+        obs = env.step(actions)
 
         root_pos = robot.data.root_link_pos_w[0].detach().cpu().numpy()
         root_quat = robot.data.root_link_quat_w[0].detach().cpu().numpy()
@@ -252,7 +252,9 @@ def main() -> None:
 
         times.append((i + 1) * dt)
         qvels.append(robot.data.joint_vel[0].detach().cpu().numpy().astype(np.float64))
-        torques.append(raw_env.sim.data.qfrc_actuator[0, 6 : 6 + len(joint_names)].detach().cpu().numpy().astype(np.float64))
+        torques.append(
+            raw_env.sim.data.qfrc_actuator[0, mapping.dof_adrs].detach().cpu().numpy().astype(np.float64)
+        )
         base_z.append(float(root_pos[2]))
         rolls.append(float(roll))
         pitches.append(float(pitch))
@@ -291,9 +293,10 @@ def main() -> None:
         torque=np.asarray(torques, dtype=np.float64),
         joint_names=joint_names,
         actuator_names=actuator_names,
-        actuator_ids=np.arange(len(joint_names), dtype=np.int32),
-        joint_ids=np.arange(len(joint_names), dtype=np.int32),
-        dof_adrs=np.arange(len(joint_names), dtype=np.int32),
+        actuator_forcerange=actuator_forcerange,
+        actuator_ids=mapping.actuator_ids.astype(np.int32),
+        joint_ids=mapping.joint_ids.astype(np.int32),
+        dof_adrs=mapping.dof_adrs.astype(np.int32),
         severity=severity,
         health=health,
         torque_scale=torque_scale,

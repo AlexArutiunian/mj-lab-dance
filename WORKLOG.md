@@ -15,6 +15,10 @@
 - Started repository/documentation cleanup for external review.
 - Added reproducible tests, doctor command, Git repository and initial commit.
 - Recomputed the load profile from the exact deploy-matched recut: right knee ranked first, left knee second.
-- Ran validated single-world checkpoints through conditional 1M state; all four checkpoints completed without a physical fall, including right-knee torque scale 0.3.
-- Added independent-process paired trial orchestration with multi-GPU scheduling and Wilson confidence intervals; end-to-end healthy/1M smoke trial passed.
-- Ran five paired jittered trials: healthy 5/5 successful; conditional 1M/right-knee 0.3x successful 3/5, with two floor-level falls at 7.78 s.
+- Added independent-process paired trial orchestration with multi-GPU scheduling and Wilson confidence intervals.
+- Audited MuJoCo transmission indexing and found that earlier derating used joint-list indices as actuator IDs. Marked all earlier worn outcomes superseded.
+- Added a shared `actuator_trnid` mapping layer and tests for reordered, missing and duplicate transmissions.
+- Re-logged the exact deploy baseline with aligned torque, DOF, actuator-name and force-range telemetry. Right knee remained the highest load proxy: peak 113.56 Nm against a 139 Nm limit.
+- Re-ran corrected exact-start checkpoints: 0, 100k and 500k completed; conditional 1M/right-knee 0.3x fell at 2.76 s.
+- Re-ran exact-start dose points: right-knee 0.8x and 0.5x completed, while 0.3x fell.
+- Demonstrated that uncalibrated reset perturbations can make healthy trials fall around 8--10 s. These trials are now treated as robustness stress tests and excluded from wear statistics by the healthy gate.

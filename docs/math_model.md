@@ -19,6 +19,10 @@ u_j(R) = u_floor + (1-u_floor) * h_j(R)^p
 
 `u_j` scales the actuator force range. This is useful for a closed-loop integration test, but it is not yet a physical fatigue law.
 
+The implementation maps joint-ordered `u_j` values to MuJoCo actuators through
+`actuator_trnid`. This mapping is part of the model contract: using array
+position as an actuator ID silently degrades the wrong joints.
+
 ## Why direct extrapolation to 1M is conditional
 
 Multiplying a small measured delta by one million is mathematically correct only under the assumed linear damage law, stationary dance/load distribution and unchanged operating conditions. Those assumptions can fail through nonlinear fatigue, temperature, lubrication, impacts, controller adaptation and load redistribution as joints degrade.

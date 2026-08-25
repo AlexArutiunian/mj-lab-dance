@@ -43,6 +43,22 @@ def main() -> None:
     log = np.load(baseline, allow_pickle=False)
     severity = compute_severity(log["time"], log["qvel"], log["torque"])
     sev_norm = normalized_severity(severity)
+    qvel = np.asarray(log["qvel"], dtype=np.float64)
+    torque = np.asarray(log["torque"], dtype=np.float64)
+    torque_rms = np.sqrt(np.mean(np.square(torque), axis=0))
+    torque_peak = np.max(np.abs(torque), axis=0)
+    qvel_rms = np.sqrt(np.mean(np.square(qvel), axis=0))
+    qvel_peak = np.max(np.abs(qvel), axis=0)
+    if "actuator_forcerange" in log:
+        force_range = np.asarray(log["actuator_forcerange"], dtype=np.float64)
+        nominal_limit = np.maximum(np.abs(force_range[:, 0]), np.abs(force_range[:, 1]))
+    else:
+        nominal_limit = np.full(torque.shape[1], np.nan)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        utilization = np.abs(torque) / nominal_limit[None, :]
+    utilization_peak = np.nanmax(utilization, axis=0)
+    utilization_rms = np.sqrt(np.nanmean(np.square(utilization), axis=0))
+    saturation_fraction_95 = np.nanmean(utilization >= 0.95, axis=0)
     joint_names = [str(x) for x in log["joint_names"]]
     target_repetition = int(
         args.target_repetition if args.target_repetition is not None else cfg["target_failure_repetition"]
@@ -63,6 +79,14 @@ def main() -> None:
             "joint": joint_names[idx],
             "severity_abs": float(severity[idx]),
             "severity_norm": float(sev_norm[idx]),
+            "torque_rms_nm": float(torque_rms[idx]),
+            "torque_peak_abs_nm": float(torque_peak[idx]),
+            "velocity_rms_rad_s": float(qvel_rms[idx]),
+            "velocity_peak_abs_rad_s": float(qvel_peak[idx]),
+            "nominal_torque_limit_nm": float(nominal_limit[idx]),
+            "torque_utilization_rms": float(utilization_rms[idx]),
+            "torque_utilization_peak": float(utilization_peak[idx]),
+            "saturation_fraction_ge_0p95": float(saturation_fraction_95[idx]),
         }
         for rank, idx in enumerate(order, 1)
     ]

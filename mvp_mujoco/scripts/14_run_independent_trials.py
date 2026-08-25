@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import subprocess
@@ -14,6 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 DANCE_SIM = ROOT.parent / "dance_sim"
 PYTHON = DANCE_SIM / ".venv" / "bin" / "python"
 WORKER = ROOT / "scripts" / "10_run_batched_wear_survival.py"
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def wilson_interval(successes: int, trials: int, z: float = 1.959963984540054) -> tuple[float, float]:
@@ -180,15 +189,42 @@ def main() -> None:
             }
         )
 
+    healthy = next((row for row in checkpoint_summary if row["checkpoint_repetitions"] == 0), None)
+    healthy_failure_rate = (
+        1.0 - float(healthy["survival_rate"])
+        if healthy is not None and not math.isnan(float(healthy["survival_rate"]))
+        else math.nan
+    )
+    for row in checkpoint_summary:
+        row["excess_failure_rate_vs_healthy"] = (
+            (1.0 - float(row["survival_rate"])) - healthy_failure_rate
+            if not math.isnan(healthy_failure_rate) and not math.isnan(float(row["survival_rate"]))
+            else math.nan
+        )
+
     summary = {
         "mode": "independent_single_world_paired_trials",
         "status": "VALIDATED_SINGLE_WORLD" if all(bool(x["valid"]) for x in trial_results) else "INVALID_TRIALS_PRESENT",
+        "model_status": "MODEL_ASSUMPTION_ONLY",
         "trials_requested": args.trials,
         "valid_trials": sum(bool(x["valid"]) for x in trial_results),
         "devices": devices,
         "target_repetition": args.target_repetition,
         "target_scale": args.target_scale,
         "duration_s": args.duration,
+        "perturbations": {
+            "pose_xy_jitter_m": args.pose_xy_jitter_m,
+            "yaw_jitter_deg": args.yaw_jitter_deg,
+            "joint_jitter_rad": args.joint_jitter_rad,
+        },
+        "provenance": {
+            "motion_file": str(args.motion_file.resolve()),
+            "motion_sha256": _sha256(args.motion_file.resolve()),
+            "policy_file": str(args.policy.resolve()),
+            "policy_sha256": _sha256(args.policy.resolve()),
+            "damage_profile": str(args.damage_profile.resolve()),
+            "damage_profile_sha256": _sha256(args.damage_profile.resolve()),
+        },
         "wall_time_s": time.perf_counter() - started,
         "checkpoints": checkpoint_summary,
     }

@@ -43,18 +43,9 @@ def _quat_wxyz_to_roll_pitch(q: np.ndarray) -> tuple[float, float]:
 
 
 def _apply_actuator_scales(raw_env, nominal_forcerange: np.ndarray, scales: np.ndarray) -> None:
-    sim = raw_env.sim
-    n = int(scales.shape[0])
-    scaled = nominal_forcerange[:n] * scales[:, None]
-    sim.mj_model.actuator_forcerange[:n] = scaled
-    sim.mj_model.actuator_forcelimited[:n] = 1
+    from wearbench.mjlab_mapping import apply_joint_ordered_actuator_scales
 
-    device = torch.device(sim.device)
-    scaled_t = torch.as_tensor(scaled, dtype=sim.model.actuator_forcerange.dtype, device=device)
-    limited_t = torch.ones((n,), dtype=sim.model.actuator_forcelimited.dtype, device=device)
-    sim.model.actuator_forcerange[:n] = scaled_t
-    sim.model.actuator_forcelimited[:n] = limited_t
-    sim.create_graph()
+    apply_joint_ordered_actuator_scales(raw_env, scales, nominal_forcerange=nominal_forcerange)
 
 
 def _applied_wear_scales(scales: np.ndarray, deadband: float) -> np.ndarray:
@@ -294,6 +285,7 @@ def main() -> None:
             env = persistent_env
             assert env is not None
         robot = raw_env.scene["robot"]
+        dof_adrs = robot.indexing.joint_v_adr.detach().cpu().numpy().astype(np.int64)
         applied_scale = _applied_wear_scales(scale, wear_effect_deadband)
         _apply_actuator_scales(raw_env, nominal_forcerange, applied_scale)
         health_before = health.copy()
@@ -324,7 +316,7 @@ def main() -> None:
             root_quat = robot.data.root_link_quat_w[0].detach().cpu().numpy()
             roll, pitch = _quat_wxyz_to_roll_pitch(root_quat)
             qvel = robot.data.joint_vel[0].detach().cpu().numpy().astype(np.float64)
-            tau = raw_env.sim.data.qfrc_actuator[0, 6 : 6 + len(joint_names)].detach().cpu().numpy().astype(np.float64)
+            tau = raw_env.sim.data.qfrc_actuator[0, dof_adrs].detach().cpu().numpy().astype(np.float64)
             power = np.abs(qvel * tau)
             if prev_power is not None:
                 severity += 0.5 * (prev_power + power) * dt

@@ -101,12 +101,19 @@ single-world healthy baseline
 - failure определяется уровнем pelvis/torso у пола с hold time, а не кратким наклоном;
 - нет NaN/Inf, solver overflow и contact-buffer overflow;
 - actuator degradation применена ко всем нужным worlds/joints;
+- joint-ordered degradation разрешена в actuator IDs через MuJoCo
+  `actuator_trnid`; совпадение позиций в массивах не считается mapping;
 - при идентичных входах нет необъяснённого межмирового расхождения;
 - результаты содержат provenance и конфигурацию.
 
 Если healthy batch падает или идентичные worlds расходятся сильнее tolerance, весь batch помечается `INVALID_SIMULATOR_BASELINE`. Нельзя вычитать baseline fall rate постфактум и называть остаток wear effect.
 
 До устранения MJWarp `nworld` артефакта primary evidence получает только `num_envs=1`. Параллелизм переносится на независимые процессы/GPU jobs, а не на worlds внутри одного solver batch.
+
+Randomized reset/Monte Carlo считается wear evidence только после калибровки
+распределения стартового состояния по telemetry реального deploy. Если
+perturbation вызывает healthy fall, paired trial целиком исключается из wear
+statistics и остаётся отдельным robustness stress-test.
 
 ## 7. Failure definition
 

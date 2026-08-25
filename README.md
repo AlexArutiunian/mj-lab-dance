@@ -27,6 +27,13 @@ The recut is not bit-identical because of export rounding: measured maximum diff
 
 Primary evidence must use one MJWarp world per process until the batch implementation passes the healthy-control quality gate.
 
+A transmission-index audit also found that earlier worn runs applied
+joint-ordered scales to actuator-array positions. The corrected implementation
+maps through MuJoCo `actuator_trnid`. With that correction, exact-start tests
+complete at right-knee target scales `0.8` and `0.5`, while `0.3` produces a
+floor-level fall at 2.76 s. This is conditional simulator sensitivity, not a
+physical lifetime prediction.
+
 ## Repository map
 
 ```text
@@ -63,9 +70,9 @@ cd mvp_mujoco
 
 The run is valid only if `failed_envs == 0` and `baseline_validation == "valid"`.
 
-## Independent paired trials
+## Independent paired stress tests
 
-Use independent single-world processes for survival statistics:
+Use independent single-world processes for paired robustness experiments:
 
 ```bash
 cd mvp_mujoco
@@ -75,7 +82,7 @@ cd mvp_mujoco
   --devices cuda:0
 ```
 
-On a host with multiple GPUs, pass for example `--devices cuda:0,cuda:1`. Every trial runs its own healthy control before worn checkpoints with the same seed. Do not replace this path with a large `--num-envs` value until MJWarp batch equivalence is demonstrated.
+On a host with multiple GPUs, pass for example `--devices cuda:0,cuda:1`. Every trial runs its own healthy control before worn checkpoints with the same seed. A failed healthy control invalidates the pair. Survival statistics require a reset/parameter distribution calibrated from real deployment telemetry; arbitrary jitter is only a stress test. Do not replace this path with a large `--num-envs` value until MJWarp batch equivalence is demonstrated.
 
 ## Scientific scope
 

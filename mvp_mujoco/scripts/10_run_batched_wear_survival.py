@@ -57,25 +57,9 @@ def _quat_wxyz_to_roll_pitch_torch(q: torch.Tensor) -> tuple[torch.Tensor, torch
 
 
 def _apply_actuator_scales(raw_env, scales: np.ndarray) -> None:
-    sim = raw_env.sim
-    n = int(scales.shape[0])
-    nominal = sim.mj_model.actuator_forcerange[:n].copy()
-    scaled = nominal * scales[:, None]
-    sim.mj_model.actuator_forcerange[:n] = scaled
-    sim.mj_model.actuator_forcelimited[:n] = 1
+    from wearbench.mjlab_mapping import apply_joint_ordered_actuator_scales
 
-    device = torch.device(sim.device)
-    scaled_t = torch.as_tensor(scaled, dtype=sim.model.actuator_forcerange.dtype, device=device)
-    limited_t = torch.ones((n,), dtype=sim.model.actuator_forcelimited.dtype, device=device)
-    if len(sim.model.actuator_forcerange.shape) == 3:
-        sim.model.actuator_forcerange[0, :n] = scaled_t
-    else:
-        sim.model.actuator_forcerange[:n] = scaled_t
-    if len(sim.model.actuator_forcelimited.shape) == 2:
-        sim.model.actuator_forcelimited[0, :n] = limited_t
-    else:
-        sim.model.actuator_forcelimited[:n] = limited_t
-    sim.create_graph()
+    apply_joint_ordered_actuator_scales(raw_env, scales)
 
 
 class FastPlayVecEnv:

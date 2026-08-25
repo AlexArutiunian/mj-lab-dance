@@ -11,6 +11,8 @@ Updated: 2026-08-25.
 - A single healthy MJWarp world completes both the short clip and the full motion in existing probes.
 - The floor-level fall detector uses pelvis, torso and a 0.50 s hold.
 - Health/torque state can be rendered in diagnostic videos.
+- Joint load telemetry and actuator derating are now aligned through MuJoCo
+  `actuator_trnid`; joint-list position is never treated as an actuator ID.
 
 ## Invalidated
 
@@ -25,9 +27,14 @@ The timing match is expected because:
 
 The full-motion and short-clip incidents are the same motion segment.
 
-## Current blocker
+## Current blockers
 
 MJWarp worlds initialized with identical policy, motion and no randomization diverge in large batches. A 64-world local-origin control reached a maximum state spread of 4.37 and produced 10 healthy falls. This remains true after removing the XY origin grid, so coordinate placement is not the root cause.
+
+Artificial reset perturbations are not yet a validated Monte Carlo distribution.
+Even `2 mm`, `0.5 deg` and `0.002 rad` perturbations can make the healthy policy
+fall around short-clip 8.3--8.6 s. These runs measure simulator/policy robustness,
+not wear, and are rejected by the healthy-control quality gate.
 
 ## Current decision
 
@@ -42,26 +49,32 @@ Use `num_envs=1` as the reference simulator path. Parallelize independent proces
 5. Add real-robot telemetry schema for current, torque, temperature and faults.
 6. Run paired healthy/worn Monte Carlo jobs as independent processes.
 
-## First validated conditional checkpoint run
+## Corrected conditional checkpoint run
 
-Single-world `RB+Y` checkpoints using the deploy-clip load profile completed on 2026-08-25:
+An audit found that earlier scripts applied joint-ordered torque scales directly
+to actuator indices. MJLab's joint and actuator orders differ; for example the
+right knee is joint-list index 9 but MuJoCo actuator 18. Earlier worn outcomes
+are therefore superseded. Load telemetry itself was in joint order and the
+right-knee load ranking remains valid.
+
+After mapping through `actuator_trnid`, single-world exact-start `RB+Y`
+checkpoints produced:
 
 ```text
 R=0:       right-knee scale 1.0000, fall 0/1
 R=100k:    right-knee scale 0.9159, fall 0/1
 R=500k:    right-knee scale 0.6085, fall 0/1
-R=1M:      right-knee scale 0.3000, fall 0/1
+R=1M:      right-knee scale 0.3000, fall 1/1 at 2.76 s
 ```
 
-This is a simulator sanity result, not a survival probability. It invalidates the earlier interpretation that scale `0.3` necessarily causes a fall; that claim came from contaminated multi-world runs. Independent repeated trials are still required.
-
-Five independent paired trials with `±1 cm` XY, `±2 deg` yaw and `±0.01 rad` joint perturbations produced:
+An exact-start dose check gave:
 
 ```text
-healthy:                     5/5 successful
-conditional 1M, scale 0.3:  3/5 successful, 2/5 floor-level falls
-failure times:               7.78 s, 7.78 s
-95% Wilson survival CI:      0.231..0.882
+right-knee target scale 0.8: completed
+right-knee target scale 0.5: completed
+right-knee target scale 0.3: floor-level fall at 2.76 s
 ```
 
-This is a valid simulator comparison under an uncalibrated degradation model. The sample is too small for a precise probability estimate, and `1M` remains a conditional model coordinate rather than measured physical lifetime.
+These are deterministic simulator sensitivity points, not survival
+probabilities. The mapping from `1M` to `scale=0.3` is still an uncalibrated
+model assumption and must not be described as measured physical lifetime.

@@ -1,5 +1,5 @@
 {
-  "status": "VALIDATED_SINGLE_WORLD",
+  "status": "VALIDATED_SINGLE_WORLD_CONDITIONAL",
   "date": "2026-08-25",
   "simulator": {
     "mujoco": "3.5.0",
@@ -18,55 +18,48 @@
     "sha256": "db60ad9d3423e8261c03b6e2294cfbdcc12c3a54c744dbc6e204b9a981d46eb8"
   },
   "policy_sha256": "0f1922f5b20189cc0307a8f91ac9eb655f07527805104d1653531d9e469c3231",
+  "mapping": {
+    "method": "mujoco_actuator_trnid",
+    "right_knee_joint_list_index": 9,
+    "right_knee_actuator_id": 18,
+    "previous_worn_results_superseded": true
+  },
   "baseline": {
     "samples": 812,
     "failed": false,
-    "min_pelvis_z_m": 0.4062789976596832,
-    "min_torso_z_m": 0.6978161334991455,
-    "telemetry_sha256": "c82453618dbc495061f1e21fd39308a1dedad7cc2cff63e4e2be0f2b75125738"
+    "min_pelvis_z_m": 0.4158036708831787,
+    "min_torso_z_m": 0.7086466550827026,
+    "telemetry_sha256": "384692b9ad48a527c1514cae215ffad10534f000516e5df37bb246e5f9108651"
   },
   "load_ranking_top5": [
-    {"joint": "right_knee_joint", "severity_norm": 1.0},
-    {"joint": "left_knee_joint", "severity_norm": 0.7558},
-    {"joint": "right_hip_yaw_joint", "severity_norm": 0.4846},
-    {"joint": "left_ankle_pitch_joint", "severity_norm": 0.4514},
-    {"joint": "right_ankle_pitch_joint", "severity_norm": 0.3868}
+    {"joint": "right_knee_joint", "severity_norm": 1.0, "peak_torque_nm": 113.5633, "nominal_limit_nm": 139.0},
+    {"joint": "left_knee_joint", "severity_norm": 0.8207, "peak_torque_nm": 95.4795, "nominal_limit_nm": 139.0},
+    {"joint": "right_hip_yaw_joint", "severity_norm": 0.4954},
+    {"joint": "left_ankle_pitch_joint", "severity_norm": 0.4356},
+    {"joint": "right_hip_roll_joint", "severity_norm": 0.3992}
   ],
   "conditional_model": {
     "target_repetition": 1000000,
     "target_weakest_joint_torque_scale": 0.3,
     "alpha_accelerated": 6.331198276870913e-7,
-    "calibrated_to_real_hardware": false
+    "calibrated_to_real_hardware": false,
+    "damage_profile_sha256": "2a9660f63144358b432783e1199bada15ecb919b07a801ce8c8e16376699633c"
   },
-  "checkpoints": [
-    {"repetitions": 0, "weakest_torque_scale": 1.0, "failed": false, "min_pelvis_z_m": 0.4163280427455902},
-    {"repetitions": 100000, "weakest_torque_scale": 0.9158962858781496, "failed": false, "min_pelvis_z_m": 0.40953168272972107},
-    {"repetitions": 500000, "weakest_torque_scale": 0.6085026044022711, "failed": false, "min_pelvis_z_m": 0.421460896730423},
-    {"repetitions": 1000000, "weakest_torque_scale": 0.29999948229543894, "failed": false, "min_pelvis_z_m": 0.4147565960884094}
+  "corrected_exact_start_checkpoints": [
+    {"repetitions": 0, "weakest_torque_scale": 1.0, "failed": false},
+    {"repetitions": 100000, "weakest_torque_scale": 0.9158962858781496, "failed": false},
+    {"repetitions": 500000, "weakest_torque_scale": 0.6085026044022711, "failed": false},
+    {"repetitions": 1000000, "weakest_torque_scale": 0.29999948229543894, "failed": true, "failure_time_s": 2.76}
   ],
-  "independent_robustness_trials": {
-    "trials": 5,
-    "paired_healthy_and_worn": true,
-    "perturbations": {
-      "pose_xy_jitter_m": 0.01,
-      "yaw_jitter_deg": 2.0,
-      "joint_jitter_rad": 0.01
-    },
-    "healthy": {
-      "successful": 5,
-      "failed": 0,
-      "survival_rate": 1.0,
-      "wilson_ci95": [0.5655175352168251, 1.0]
-    },
-    "conditional_1m_scale_0p3": {
-      "successful": 3,
-      "failed": 2,
-      "survival_rate": 0.6,
-      "wilson_ci95": [0.2307242812760128, 0.882379225767352],
-      "failure_times_s": [7.78, 7.78]
-    },
-    "wall_time_s": 205.62738108800113,
-    "interpretation": "First paired robustness signal only. Five trials are insufficient for a precise survival estimate."
+  "exact_start_dose_response": [
+    {"right_knee_target_scale": 0.8, "failed": false},
+    {"right_knee_target_scale": 0.5, "failed": false},
+    {"right_knee_target_scale": 0.3, "failed": true, "failure_time_s": 2.76}
+  ],
+  "robustness_stress_test": {
+    "status": "NOT_A_WEAR_SURVIVAL_ESTIMATE",
+    "reason": "Uncalibrated MJLab reset perturbations caused healthy-control falls around 8-10 seconds.",
+    "wear_trials_with_failed_healthy_controls_excluded": true
   },
-  "interpretation": "The deterministic checkpoints validate the closed-loop path; the five paired jittered trials provide an initial robustness signal. Neither calibrates the model to physical G1 lifetime."
+  "interpretation": "Validated deterministic closed-loop sensitivity only. Repetition-to-torque-scale mapping is an uncalibrated assumption, and no physical one-million-dance lifetime or survival probability is claimed."
 }

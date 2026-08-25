@@ -40,6 +40,32 @@ The accelerated `alpha` is selected to create observable degradation. It has no 
 
 Mitigation: report conditional/sensitivity results only and calibrate against real telemetry or component endurance data.
 
+## Reset-perturbation sensitivity near 9 seconds
+
+Severity: critical for Monte Carlo interpretation.
+
+The exact deploy start completes healthy, but some tiny randomized reset
+offsets produce healthy floor-level falls around 8.3--8.6 s. A wider stress
+test also produced a healthy fall at 9.74 s. The perturbations are injected by
+MJLab's motion-command reset and have not been calibrated to the real `RB+Y`
+deployment-state distribution.
+
+Mitigation:
+
+- reject an entire paired trial when its healthy control falls;
+- use exact-start runs only as deterministic regression/sensitivity tests;
+- keep randomized runs labeled as robustness stress tests;
+- derive future reset distributions from real robot telemetry before making
+  survival-rate claims.
+
+## Superseded joint-to-actuator indexing
+
+Resolved on 2026-08-25. Earlier worn simulations assumed joint-list index was
+the actuator index. MJLab uses a different actuator order, so torque derating
+was applied to the wrong drives. The implementation now resolves each joint via
+MuJoCo `actuator_trnid`, validates one actuator per joint, and logs the resolved
+IDs. All worn results produced before this correction are superseded.
+
 ## Torque derating is not a complete wear mechanism
 
 The current simulator implementation maps accumulated damage mainly to available actuator force/torque. Real degradation can also increase friction, backlash, thermal resistance, noise and fault probability.
