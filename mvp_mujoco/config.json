@@ -1,0 +1,17 @@
+{
+  "dance_duration_s": 120.0,
+  "target_failure_repetition": 50,
+  "target_weakest_joint_torque_scale": 0.30,
+  "torque_scale_floor": 0.10,
+  "health_exponent": 1.5,
+  "wear_effect_deadband": 0.0001,
+  "failure": {
+    "pelvis_height_m": 0.35,
+    "torso_height_m": 0.30,
+    "base_height_m": 0.35,
+    "max_abs_roll_deg": 60.0,
+    "max_abs_pitch_deg": 60.0,
+    "max_tracking_error": null,
+    "failure_hold_s": 0.5
+  }
+}

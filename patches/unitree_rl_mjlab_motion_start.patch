@@ -1,0 +1,31 @@
+diff --git a/src/tasks/tracking/mdp/commands.py b/src/tasks/tracking/mdp/commands.py
+index f4bad44..ffdfcc0 100644
+--- a/src/tasks/tracking/mdp/commands.py
++++ b/src/tasks/tracking/mdp/commands.py
+@@ -34,6 +34,7 @@ class MotionLoader:
+     self, motion_file: str, body_indexes: torch.Tensor, device: str = "cpu"
+   ) -> None:
+     data = np.load(motion_file)
++    self.fps = float(data["fps"][0]) if "fps" in data else 50.0
+     self.joint_pos = torch.tensor(data["joint_pos"], dtype=torch.float32, device=device)
+     self.joint_vel = torch.tensor(data["joint_vel"], dtype=torch.float32, device=device)
+     self._body_pos_w = torch.tensor(
+@@ -296,7 +297,9 @@ class MotionCommand(CommandTerm):
+ 
+   def _resample_command(self, env_ids: torch.Tensor):
+     if self.cfg.sampling_mode == "start":
+-      self.time_steps[env_ids] = 0
++      start_step = int(round(float(self.cfg.motion_start_time_s) * self.motion.fps))
++      start_step = max(0, min(start_step, self.motion.time_step_total - 1))
++      self.time_steps[env_ids] = start_step
+     elif self.cfg.sampling_mode == "uniform":
+       self._uniform_sampling(env_ids)
+     else:
+@@ -484,6 +487,7 @@ class MotionCommandCfg(CommandTermCfg):
+   adaptive_uniform_ratio: float = 0.1
+   adaptive_alpha: float = 0.001
+   sampling_mode: Literal["adaptive", "uniform", "start"] = "adaptive"
++  motion_start_time_s: float = 0.0
+ 
+   @dataclass
+   class VizCfg:

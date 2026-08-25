@@ -1,0 +1,28 @@
+# Local environments and caches
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Logs and transient simulator artifacts
+*.log
+dance_sim/logs/
+mvp_mujoco/logs/
+mvp_mujoco/outputs/
+
+# Generated motion/video artifacts
+*.mp4
+*.avi
+dance_sim/experiments/
+
+# Upstream checkout is installed separately; local changes are supplied as a patch.
+dance_sim/external/unitree_rl_mjlab/
+
+# Editor and OS files
+.idea/
+.vscode/
+*~
+.DS_Store

@@ -1,0 +1,390 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% WearBench-G1 -- RA-L working draft
+% Initial RA-L submissions use the PaperCept ieeeconf class in US Letter format.
+% Keep this source anonymous for review.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[letterpaper,10pt,conference]{ieeeconf}
+
+\IEEEoverridecommandlockouts
+\overrideIEEEmargins
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{cite}
+\usepackage{balance}
+\usepackage{url}
+
+% Working-draft switch. Set \draftnotesfalse before submission.
+\newif\ifdraftnotes
+\draftnotestrue
+\newcommand{\tbd}[1]{\ifdraftnotes\par\noindent\textbf{[DRAFT TODO: #1]}\par\fi}
+\newcommand{\D}{\mathcal{D}}
+\newcommand{\RUL}{\mathrm{RUL}}
+\newcommand{\clip}{\operatorname{clip}}
+
+\title{\LARGE \bf
+WearBench-G1: Massively Parallel Lifetime Simulation for Degradation-Aware Humanoid Control
+}
+
+% Double-anonymous review: no names or affiliations in the initial manuscript.
+\author{}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+\pagestyle{empty}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{abstract}
+Dynamic humanoid skills can place strongly nonuniform cyclic, thermal, and impact loads on electric actuators, yet current robot-learning benchmarks typically evaluate short-horizon task performance while treating actuator capability as stationary. This paper introduces WearBench-G1, a framework for studying persistent, motion-induced actuator degradation over long sequences of whole-body skills in massively parallel humanoid simulation. Each joint is assigned a multi-mechanism degradation state driven by simulated torque, velocity, temperature, and impact histories. The accumulated state persists across task resets and modifies actuator limits, losses, friction, and backlash, creating a closed degradation loop in which past motions affect future control performance. The framework separates physical remaining useful life from functional remaining useful life and supports population-level reliability analysis over randomized virtual robot lifetimes. We further formulate degradation-aware policy learning that trades task performance against incremental damage. Quantitative claims are intentionally deferred until the planned simulation and hardware-calibration experiments are completed.
+\end{abstract}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{INTRODUCTION}
+
+Humanoid robots are increasingly expected to execute long sequences of heterogeneous behaviors rather than a single isolated locomotion skill. A realistic deployment may alternate between standing, walking, running, squatting, lifting, jumping, recovering from disturbances, and highly dynamic whole-body motions. These behaviors differ not only in task difficulty but also in how they load individual actuators. A jump landing may create short high-amplitude loads at the ankle and knee, repeated deep squats may accumulate large cyclic loading at the knee and hip, while continuous upper-body motion may primarily contribute thermal and gearbox losses. Consequently, two controllers with similar short-horizon task success can induce substantially different long-term actuator histories.
+
+Most learning-based locomotion evaluations reset the simulated robot between episodes and implicitly restore a nominal actuator model. This is appropriate for learning a task but removes an important physical memory: irreversible degradation accumulated over previous tasks. In real hardware, temperature, friction, backlash, bearing and transmission wear, and fatigue do not obey an episodic reset. The resulting gap is particularly important for dynamic humanoids because many joints repeatedly operate near high torque and velocity while also experiencing impacts through whole-body contacts.
+
+Prior work has addressed several components of this problem separately. Robot fatigue has been modeled to redistribute effort among manipulator joints and account for previous task history \cite{lamon2018fatigue}. Health-aware reinforcement learning has incorporated remaining useful life (RUL) into control objectives \cite{jha2020health}. Joint wear proxies based on mechanical power have been used to optimize industrial robot placement \cite{kot2021wear}, and lifespan-guided reinforcement learning has combined fatigue analysis with policy optimization for external tools \cite{wu2025tool}. In legged robotics, actuator-degradation adaptation has been studied under externally imposed faults \cite{wu2023adapt}, while recent thermal-aware locomotion integrates motor temperature dynamics directly into reinforcement learning \cite{qian2026thermal}. A recent Unitree G1 study further demonstrated that physically interpretable actuator-loss models can be identified from onboard measurements \cite{deniz2026g1}.
+
+These results motivate a different question: \emph{can a humanoid's complete motion history be converted into a persistent joint-level degradation state, and can that state be used both to predict lifetime and to learn less damaging behavior?} To the best of our knowledge, existing work does not combine (i) heterogeneous dynamic whole-body humanoid skills, (ii) endogenous degradation generated by the executed motion itself, (iii) persistence of degradation across task episodes, (iv) evolving actuator dynamics caused by that degradation, and (v) massively parallel lifetime simulation for reliability statistics.
+
+This paper develops WearBench-G1 around that gap. The framework is designed for a Unitree G1 embodiment and a repertoire ranging from locomotion to highly dynamic whole-body motion, while the formulation is robot-agnostic. The study is organized around three contributions:
+
+\begin{itemize}
+    \item \textbf{Persistent joint-level lifetime simulation.} We formulate a multi-mechanism degradation state that accumulates from torque, velocity, thermal, and impact histories and is preserved across task resets.
+    \item \textbf{Massively parallel motion-to-degradation benchmarking.} Thousands of randomized virtual humanoid lifetimes can be simulated to estimate per-skill degradation distributions, survival curves, first-joint-to-failure statistics, and both physical and functional RUL.
+    \item \textbf{Degradation-aware whole-body control.} We formulate a health-conditioned policy objective in which incremental degradation is penalized while actuator health simultaneously modifies the simulated plant, closing the loop between past loading and future task performance.
+\end{itemize}
+
+\tbd{After experiments, replace this paragraph and the final abstract sentence with 3--4 quantitative headline results: number of environments/lifetimes, strongest motion-to-joint effect, RUL prediction error after calibration, and performance-vs-degradation improvement of the proposed policy.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{RELATED WORK}
+
+\subsection{Robot fatigue, wear, and health-aware control}
+
+Robot lifetime management predates modern whole-body learning. Lamon \emph{et al.} modeled joint fatigue as a dynamic state and optimized robot configurations while accounting for fatigue inherited from previous tasks \cite{lamon2018fatigue}. This is an important precedent for persistent health state, but the setting concerns quasi-static co-manipulation rather than repeated dynamic whole-body skills. Kot \emph{et al.} used joint torque and angular velocity to construct a relative wear measure and optimized industrial robot placement to reduce joint loading \cite{kot2021wear}. Such mechanical-work proxies are attractive because they can be evaluated efficiently from standard robot states, but by themselves they do not identify a unique physical failure mechanism.
+
+Health-aware control explicitly incorporates prognostics into decision making. Jha \emph{et al.} used reinforcement learning and RUL estimates to regulate the degradation of a simulated motor-shaft system \cite{jha2020health}. More recently, Wu \emph{et al.} combined finite-element stress analysis, cycle counting, Miner's cumulative-damage rule, and RUL-guided reinforcement learning to extend the life of general-purpose tools \cite{wu2025tool}. These works establish that lifetime information can be meaningful within a control objective. Our focus differs in that the degraded components are the robot's own distributed whole-body actuators, degradation is generated online by the executed humanoid motion, and population statistics are collected over large sets of heterogeneous lifetime schedules.
+
+\subsection{Actuator health in legged and humanoid robots}
+
+Fault-tolerant legged control usually assumes an actuator impairment and asks whether locomotion can continue. ADAPT, for example, trains a quadruped to infer and compensate for actuator degradation conditions \cite{wu2023adapt}. This addresses adaptation after a health change, but the health change is an exogenous scenario variable rather than the accumulated consequence of the robot's previous actions.
+
+Thermal dynamics provide a closer example of endogenous actuator state. Qian \emph{et al.} integrate a full-body motor thermal model into reinforcement learning for Unitree A1 locomotion and expose motor temperatures to the policy \cite{qian2026thermal}. Temperature is a physically meaningful hidden memory of prior loading, yet thermal state is largely reversible through cooling and does not by itself represent irreversible lifetime consumption. WearBench-G1 therefore treats temperature as one contributor to a broader degradation state rather than equating temperature with lifetime.
+
+For humanoid hardware, Deniz \emph{et al.} identify a physics-based electrical power model for seven joints of a Unitree G1 arm using onboard measurements, demonstrating that interpretable joint-dependent loss characteristics can be estimated on the physical platform \cite{deniz2026g1}. This result motivates a calibration route for the loss and thermal terms of the proposed framework.
+
+\begin{table*}[t]
+\caption{Positioning of WearBench-G1 relative to representative prior work. ``Endogenous'' means that degradation is generated from the executed motion history rather than prescribed externally.}
+\label{tab:related}
+\centering
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}lccccccX@{}}
+\toprule
+Work & Robot own joints & Dynamic legged & Persistent history & Endogenous & Plant evolves & Massive parallel & Main distinction from WearBench-G1 \\
+\midrule
+Lamon \emph{et al.} \cite{lamon2018fatigue} & yes & no & yes & yes & no & no & Fatigue-aware manipulator configuration for force tasks \\
+Kot \emph{et al.} \cite{kot2021wear} & yes & no & no & yes & no & no & Relative joint-wear proxy for industrial robot placement \\
+Jha \emph{et al.} \cite{jha2020health} & component & no & yes & yes & yes & no & RUL-aware RL on a motor/shaft simulation \\
+Wu \emph{et al.} \cite{wu2023adapt} & yes & yes & no & no & yes & parallel RL & Adaptation to externally imposed actuator degradation \\
+Wu \emph{et al.} \cite{wu2025tool} & external tool & no & yes & yes & tool evolves & no & Fatigue/RUL-guided RL for tool use \\
+Qian \emph{et al.} \cite{qian2026thermal} & yes & yes & thermal only & yes & thermal state & yes & Thermal-safe quadruped locomotion \\
+\textbf{WearBench-G1} & \textbf{yes} & \textbf{yes} & \textbf{yes} & \textbf{yes} & \textbf{yes} & \textbf{yes} & Heterogeneous whole-body skills and lifetime reliability statistics \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{PROBLEM FORMULATION}
+
+Consider a humanoid with $n$ actuated joints and a library of whole-body skills $\mathcal{M}=\{m_1,\ldots,m_K\}$. A lifetime is an ordered schedule
+\begin{equation}
+\mathcal{L} = (m^{(1)},m^{(2)},\ldots,m^{(H)}),
+\label{eq:lifetime}
+\end{equation}
+where each skill may be executed with different commands, payloads, terrain conditions, or motion references. For joint $j$, the instantaneous load state is summarized by
+\begin{equation}
+\mathbf{z}_j(t)=
+\left[q_j(t),\dot q_j(t),\tau_j(t),T_j(t),F^{\mathrm{imp}}_j(t)\right],
+\label{eq:loadstate}
+\end{equation}
+where $q_j$, $\dot q_j$, and $\tau_j$ are joint position, velocity, and torque; $T_j$ is actuator temperature; and $F^{\mathrm{imp}}_j$ is an impact-related load signal derived from contacts and joint reactions.
+
+We distinguish three concepts that are often conflated. First, an \emph{instantaneous load metric} describes stress during one motion. Second, an irreversible \emph{degradation state} $D_j$ integrates lifetime consumption over the past. Third, \emph{functional capability} describes whether the current degraded robot can still complete a target skill. The central state variable is therefore
+\begin{equation}
+\mathbf{D}(t)=[D_1(t),\ldots,D_n(t)], \qquad
+\mathbf{h}(t)=g(\mathbf{D}(t)),
+\label{eq:health}
+\end{equation}
+where $h_j\in[0,1]$ is a normalized actuator-health representation used by the simulator and, optionally, by the policy.
+
+The framework seeks to answer four related questions: (1) which skills produce the largest damage increments at each joint; (2) which lifetime schedules lead to which first failure modes; (3) how much useful performance remains as degradation accumulates; and (4) whether a controller can reduce lifetime consumption without materially reducing task performance.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{WEARBENCH-G1 FRAMEWORK}
+
+\subsection{Massively parallel lifetime state}
+
+A population of $N_{\mathrm{env}}$ humanoids is simulated in parallel. Each environment $i$ carries its own persistent health state $\mathbf{D}_i$ and uncertain physical parameters $\boldsymbol{\theta}_i$:
+\begin{equation}
+\boldsymbol{\theta}_i \sim p(\boldsymbol{\theta}), \qquad
+\mathbf{D}_i^{(k+1)}=
+\mathbf{D}_i^{(k)}+\Delta\mathbf{D}_i^{(k)}.
+\label{eq:persistence}
+\end{equation}
+The pose, velocity, task objects, and reference motion may be reset after a trial, but the irreversible components of $\mathbf{D}_i$ are not. Temperature can be either propagated continuously or partially relaxed according to a cooling model between tasks. This distinction produces virtual ``biographies'' rather than independent episodes.
+
+The random vector $\boldsymbol{\theta}$ can include mass and inertia perturbations, ground friction, payload, ambient temperature, motor-loss coefficients, thermal parameters, fatigue-curve parameters, transmission wear coefficients, and initial health. Such randomization serves two purposes: robustness testing and uncertainty propagation from poorly known material/actuator parameters to lifetime estimates.
+
+\subsection{Efficient joint loading terms}
+
+A basic mechanical loading statistic is the magnitude of joint mechanical power,
+\begin{equation}
+P^{\mathrm{mech}}_j(t)=|\tau_j(t)\dot q_j(t)|,
+\label{eq:power}
+\end{equation}
+from which normalized work-like quantities can be accumulated efficiently on the GPU. This term is related to established wear proxies for robot manipulators \cite{kot2021wear}, but it is not treated as a complete physical failure model.
+
+For actuator thermal state, we employ a first-order lumped model,
+\begin{equation}
+C_{\theta,j}\dot T_j = P^{\mathrm{loss}}_j
+-\frac{T_j-T_{\mathrm{amb}}}{R_{\theta,j}},
+\label{eq:thermal}
+\end{equation}
+where $C_{\theta,j}$ and $R_{\theta,j}$ are effective thermal capacitance and resistance. $P^{\mathrm{loss}}_j$ is a calibrated, nonnegative actuator-loss model. Candidate basis terms include copper, viscous, Coulomb, and motion-coupling losses; the recent G1 identification study \cite{deniz2026g1} provides a direct hardware precedent for fitting such terms from measured trajectories.
+
+\subsection{Multi-mechanism cumulative degradation}
+
+We represent irreversible degradation as several interpretable channels rather than a single arbitrary coefficient. The proposed joint state is
+\begin{equation}
+\mathbf{d}_j =
+\left[D^{\mathrm{fat}}_j,
+D^{\mathrm{th}}_j,
+D^{\mathrm{imp}}_j,
+D^{\mathrm{wear}}_j\right].
+\label{eq:channels}
+\end{equation}
+
+\textbf{Cyclic fatigue.} Torque or stress-equivalent histories are reduced to cycles using rainflow counting. For cycle bin $b$, Miner's cumulative-damage rule gives \cite{miner1945}
+\begin{equation}
+D^{\mathrm{fat}}_j=
+\sum_b \frac{n_{j,b}}{N_{j,b}},
+\label{eq:miner}
+\end{equation}
+where $n_{j,b}$ is the observed number of cycles and $N_{j,b}$ is the expected number to failure at the corresponding amplitude. The mapping from simulated joint signals to a stress-equivalent cycle and the $S$--$N$ parameters must be calibrated for the target actuator/transmission; before calibration, this channel is reported as a relative degradation index rather than absolute life.
+
+\textbf{Thermal aging.} Long operation at elevated temperature is represented by
+\begin{equation}
+D^{\mathrm{th}}_j(t)=
+\int_0^t \kappa_{T,j}\,\phi_T(T_j(s))\,ds,
+\label{eq:thermalaging}
+\end{equation}
+where $\phi_T$ is a calibrated threshold or Arrhenius-type acceleration function. This separates reversible temperature state from irreversible temperature-induced lifetime consumption.
+
+\textbf{Impact accumulation.} Dynamic humanoid motions create short contact transients that are poorly represented by average energy alone. We therefore accumulate an impact channel
+\begin{equation}
+D^{\mathrm{imp}}_j=
+\sum_{k\in\mathcal{I}}
+\kappa_{I,j}
+\left(\frac{J_{j,k}}{J^{\mathrm{ref}}_j}\right)^{p_j},
+\label{eq:impact}
+\end{equation}
+where $J_{j,k}$ is an impulse- or peak-reaction-derived quantity at impact event $k$. The exponent $p_j$ allows severe landings to carry disproportionate damage.
+
+\textbf{Transmission/wear proxy.} In the absence of detailed contact geometry inside a commercial transmission, an efficient work-normalized proxy is
+\begin{equation}
+D^{\mathrm{wear}}_j=
+\kappa_{W,j}
+\int
+\frac{|\tau_j\dot q_j|}
+{\tau_j^{\max}\omega_j^{\max}}dt.
+\label{eq:wear}
+\end{equation}
+If a detailed clearance/contact model is available, this term can be replaced by a tribological model such as Archard wear \cite{archard1953}.
+
+A scalar damage coordinate used for ranking can be formed as
+\begin{equation}
+D_j=
+w_FD^{\mathrm{fat}}_j+w_TD^{\mathrm{th}}_j+
+ w_ID^{\mathrm{imp}}_j+w_WD^{\mathrm{wear}}_j,
+\label{eq:totaldamage}
+\end{equation}
+with the important restriction that $w_\cdot$ cannot be interpreted as physical lifetime weights until calibration data are available. For uncalibrated simulation, we retain the channel vector and report dimensionless relative rankings.
+
+\subsection{Closing the degradation loop}
+
+A lifetime simulator becomes materially different from an offline stress logger only when accumulated degradation changes subsequent robot behavior. We therefore map health $h_j=g_j(\mathbf{d}_j)$ to actuator parameters. A simple monotone model is
+\begin{align}
+\tau^{\max}_j(h_j) &= \tau^{\max}_{j,0} f_{\tau,j}(h_j), \\
+b_j(h_j) &= b_{j,0}+\Delta b_j(1-h_j), \\
+\beta_j(h_j) &= \beta_{j,0}+\Delta\beta_j(1-h_j),
+\label{eq:evolvingplant}
+\end{align}
+where $b_j$ is effective friction/damping and $\beta_j$ denotes backlash or dead-zone magnitude. More detailed mappings may alter torque constant, efficiency, joint noise, delay, or tracking bandwidth. The key property is causal persistence: a demanding motion at time $k$ changes the plant faced by the policy at $k+1$.
+
+\begin{figure*}[t]
+\centering
+\fbox{\parbox{0.94\textwidth}{\centering
+\textbf{WearBench-G1 lifetime loop:}\quad
+Skill / reference $\rightarrow$ whole-body policy $\rightarrow$ G1 dynamics $\rightarrow$
+$\{q,\dot q,\tau,T,\mathrm{contacts}\}$ $\rightarrow$ fatigue / thermal / impact / wear increments
+$\rightarrow$ persistent joint health $\rightarrow$ modified actuator dynamics $\rightarrow$ next skill.\\[2pt]
+Across $N_{\mathrm{env}}$ independent randomized lifetimes, the same loop yields motion-to-degradation maps, survival curves, first-joint-to-failure distributions, and physical/functional RUL estimates.
+}}
+\caption{Conceptual closed-loop architecture. The degradation state is not reset when the task episode is reset.}
+\label{fig:pipeline}
+\end{figure*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{REMAINING USEFUL LIFE AND RELIABILITY}
+
+\subsection{Physical and functional lifetime}
+
+A binary material failure threshold is not the only meaningful endpoint for a robot. We therefore distinguish two RUL definitions.
+
+The \emph{physical lifetime} is the first repetition index $N$ at which a calibrated damage criterion reaches a critical limit,
+\begin{equation}
+N_{\mathrm{phys}}=
+\min\left\{N:\max_j D_j(N)\ge D_j^{\mathrm{crit}}\right\}.
+\label{eq:physicalrul}
+\end{equation}
+Before calibration, $N_{\mathrm{phys}}$ is not reported in real-world units.
+
+The \emph{functional lifetime} asks when the degraded robot can no longer execute the target skill with sufficient reliability. For required success probability $p_\star$,
+\begin{equation}
+N_{\mathrm{func}}(p_\star)=
+\min\left\{N:
+P(\mathrm{success}\mid N)<p_\star\right\}.
+\label{eq:functionalrul}
+\end{equation}
+This definition naturally captures gradual deterioration: increased tracking error, repeated recovery steps, slower motion, unstable landings, or torque saturation may make a skill unusable well before a hard mechanical failure.
+
+\subsection{Population statistics}
+
+Massively parallel simulation produces a distribution of lifetimes rather than a single deterministic repetition count. For joint $j$, the survival function is
+\begin{equation}
+S_j(N)=P(N_{\mathrm{fail},j}>N),
+\label{eq:survival}
+\end{equation}
+and the framework additionally records the first-joint-to-failure probability
+\begin{equation}
+P\left(j=\arg\min_k N_{\mathrm{fail},k}\mid\mathcal{L}\right).
+\label{eq:firstfailure}
+\end{equation}
+These statistics directly support questions such as whether jump-heavy schedules are ankle-limited while squat/carry schedules are knee- or hip-limited, and how confidently that conclusion persists under parameter uncertainty.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{DEGRADATION-AWARE POLICY LEARNING}
+
+The benchmark can first be used passively: a frozen baseline policy executes each skill while degradation is logged but does not affect reward. This isolates the natural load profile of existing controllers. A second stage then exposes actuator health to the policy and explicitly optimizes lifetime.
+
+Let $r_t^{\mathrm{task}}$ contain the conventional tracking, stability, smoothness, and task terms. A degradation-aware objective is
+\begin{equation}
+ r_t = r_t^{\mathrm{task}}
+ -\lambda_D\sum_j \Delta D_{j,t}
+ -\lambda_T\sum_j [T_{j,t}-T_{j}^{\mathrm{safe}}]_+^2,
+\label{eq:reward}
+\end{equation}
+where $[x]_+=\max(x,0)$. The observation can include $\mathbf{h}_t$ and temperatures, allowing the policy to redistribute effort when particular joints have less remaining capability.
+
+A critical experimental control is to compare policies at matched task quality. A lower degradation score achieved simply by moving more slowly or refusing difficult motions is not useful. We therefore evaluate the Pareto frontier between task return (or tracking quality) and lifetime consumption. The primary comparison will be a nominal policy, a health-observing policy without degradation reward, and the full degradation-aware policy. Additional ablations remove individual fatigue, thermal, and impact channels to determine which mechanism changes behavior.
+
+For training stability, damage need not be updated at the physics rate. Whole-body dynamics may run at hundreds of hertz while thermal state is updated at a lower control frequency and rainflow/fatigue damage is accumulated over windows or completed cycles. Accelerated degradation may be used during curriculum training to expose the policy to a wide health range, but all reported lifetime estimates must be evaluated with the unaccelerated calibrated model.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{PLANNED EXPERIMENTAL PROTOCOL}
+
+The empirical study is intentionally separated into benchmark, control, and calibration experiments so that relative simulation conclusions are not confused with absolute real-world lifetime claims.
+
+\subsection{Skill suite and lifetime schedules}
+
+The initial G1 skill suite will include static standing, slow/nominal/fast walking, running, turning, squatting and deep squatting, jump and landing, kicking, stair-like locomotion, payload carrying, dance motion tracking, and a highly dynamic whole-body motion class such as martial-arts tracking. Physics-based dynamic skill tracking methods such as KungfuBot \cite{xie2025kungfubot} provide a natural source of high-amplitude reference motions.
+
+Each skill is evaluated both in isolation and as part of long mixed schedules. Schedule families will include locomotion-dominant, jump-dominant, manipulation/carry-dominant, and high-dynamic ``dance/kung-fu'' profiles. Within a family, command speed, payload, repetition rate, rest/cooling time, and terrain/contact parameters are randomized.
+
+\begin{table}[t]
+\caption{Planned benchmark matrix. Exact counts will be fixed after throughput profiling.}
+\label{tab:protocol}
+\centering
+\scriptsize
+\begin{tabular}{@{}ll@{}}
+\toprule
+Dimension & Planned setting \\
+\midrule
+Embodiment & Unitree G1, full-body model \\
+Parallel environments & 4,096--16,384 target \\
+Skill classes & 10--20 \\
+Lifetime schedule families & $\geq 4$ \\
+Randomized factors & load, friction, mass, thermal, wear \\
+Primary joint signals & $q,\dot q,\tau,T$, contacts/reactions \\
+Degradation channels & fatigue, thermal, impact, wear \\
+Reliability outputs & survival, hazard, first failure, RUL \\
+Policy comparison & nominal vs. degradation-aware \\
+Cross-simulator check & planned for selected trajectories \\
+Hardware calibration & planned; no destructive full-robot test \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Benchmark metrics}
+
+For every skill and joint we will report normalized damage per unit task, peak and RMS torque utilization, positive mechanical work, thermal rise, impact statistics, and task-performance metrics. Lifetime-level outputs include median and percentile physical/functional RUL, $S_j(N)$, time-to-first-joint-failure, and the distribution of the limiting joint. To avoid misleading deterministic claims, all calibrated lifetime predictions will be reported with uncertainty intervals induced by $p(\boldsymbol{\theta})$.
+
+\subsection{Calibration strategy for absolute lifetime prediction}
+
+The simulation alone can support comparative statements such as ``skill A produces $x$ times the modeled knee degradation of skill B'' under a declared model, but it cannot by itself justify a statement such as ``the knee fails after $N$ repetitions.'' Absolute lifetime requires calibration.
+
+We therefore plan a staged real-to-sim calibration. First, non-destructive logs from the physical G1 will be used to fit actuator-loss and thermal parameters under representative torque-speed trajectories, following the general identification philosophy demonstrated for the G1 arm in \cite{deniz2026g1}. Second, where hardware access permits, one spare actuator or representative drive module will undergo accelerated bench cycling using torque-speed profiles extracted from the most informative simulated motions. Observable degradation indicators will include backlash, tracking error, current/power drift, temperature response, friction, and vibration. These data will identify or bound the parameters in Eqs.~\eqref{eq:miner}--\eqref{eq:evolvingplant} without intentionally aging the complete humanoid.
+
+A held-out set of load profiles will then test whether the calibrated model predicts degradation indicators beyond the trajectories used for fitting. Only after this validation will repetition-count predictions (e.g., the probability that a two-minute dynamic dance becomes functionally infeasible before a specified number of repetitions) be reported as real-world RUL estimates.
+
+\tbd{Fill exact simulator version, G1 asset, policy sources, control/physics rates, number of environments, GPU, training steps, and all randomization ranges.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{RESULTS}
+
+\tbd{RESULTS PLACEHOLDER -- do not invent values. Add: (1) throughput/scaling plot for 1k/4k/8k/16k environments; (2) per-joint motion-to-degradation heat map; (3) survival curves for at least four lifetime schedules; (4) first-joint-to-failure distribution; (5) nominal vs degradation-aware Pareto plot; (6) ablation table; (7) calibration/held-out prediction plot if hardware data are available.}
+
+\begin{table}[t]
+\caption{Main quantitative comparison to be populated after experiments. All entries are intentionally blank in this working draft.}
+\label{tab:mainresults}
+\centering
+\scriptsize
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Policy & Success & Track err. & $\Delta D$ & Functional RUL \\
+\midrule
+Nominal & -- & -- & -- & -- \\
+Health observation only & -- & -- & -- & -- \\
+Degradation-aware & -- & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{DISCUSSION AND LIMITATIONS}
+
+The central methodological risk is model validity. A high-fidelity rigid-body simulator provides joint torques and contacts, but commercial actuator wear depends on internal geometry, materials, lubrication, manufacturing variation, control electronics, and maintenance conditions that may be only partially observable. Accordingly, WearBench-G1 deliberately separates \emph{relative degradation benchmarking} from \emph{absolute lifetime prediction}. The former can be useful before full calibration, provided the assumed model is stated and sensitivity is reported. The latter requires hardware evidence and uncertainty bounds.
+
+A second limitation is identifiability. Different degradation mechanisms can produce similar symptoms, such as increased tracking error or power consumption. Multi-sensor calibration and targeted excitation trajectories are therefore preferable to fitting all channels from a single aggregate metric. A third limitation is accelerated aging during policy training: scaling degradation rates can improve state-space coverage, but the accelerated model must not be used directly to claim real operating life.
+
+Finally, lifetime-aware control creates a multi-objective problem rather than a universally optimal behavior. A policy that minimizes wear by moving slowly can be unacceptable for time-critical tasks. Reporting the Pareto frontier between task quality, energy, thermal margin, and degradation is therefore more informative than reporting a single scalar reward.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{CONCLUSION}
+
+This paper formulates WearBench-G1, a massively parallel framework for persistent actuator degradation in dynamic humanoid robots. Instead of resetting the robot to a nominal mechanical state after every episode, the proposed formulation carries joint-level fatigue, thermal-aging, impact, and wear states across a sequence of skills and feeds the resulting health back into actuator dynamics. This enables motion-to-degradation benchmarking, population-level reliability analysis, physical and functional RUL definitions, and degradation-aware policy learning within one closed loop. The remaining empirical work is to implement and profile the framework at scale, establish the motion benchmark, quantify the performance-lifetime trade-off, and calibrate the model sufficiently to convert relative degradation indices into defensible real-world lifetime predictions.
+
+\tbd{Replace conclusion with measured findings and remove all draft TODO notes before submission.}
+
+\balance
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
