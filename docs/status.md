@@ -54,3 +54,14 @@ R=1M:      right-knee scale 0.3000, fall 0/1
 ```
 
 This is a simulator sanity result, not a survival probability. It invalidates the earlier interpretation that scale `0.3` necessarily causes a fall; that claim came from contaminated multi-world runs. Independent repeated trials are still required.
+
+Five independent paired trials with `±1 cm` XY, `±2 deg` yaw and `±0.01 rad` joint perturbations produced:
+
+```text
+healthy:                     5/5 successful
+conditional 1M, scale 0.3:  3/5 successful, 2/5 floor-level falls
+failure times:               7.78 s, 7.78 s
+95% Wilson survival CI:      0.231..0.882
+```
+
+This is a valid simulator comparison under an uncalibrated degradation model. The sample is too small for a precise probability estimate, and `1M` remains a conditional model coordinate rather than measured physical lifetime.

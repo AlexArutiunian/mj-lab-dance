@@ -17,3 +17,4 @@
 - Recomputed the load profile from the exact deploy-matched recut: right knee ranked first, left knee second.
 - Ran validated single-world checkpoints through conditional 1M state; all four checkpoints completed without a physical fall, including right-knee torque scale 0.3.
 - Added independent-process paired trial orchestration with multi-GPU scheduling and Wilson confidence intervals; end-to-end healthy/1M smoke trial passed.
+- Ran five paired jittered trials: healthy 5/5 successful; conditional 1M/right-knee 0.3x successful 3/5, with two floor-level falls at 7.78 s.

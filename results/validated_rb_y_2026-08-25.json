@@ -44,5 +44,29 @@
     {"repetitions": 500000, "weakest_torque_scale": 0.6085026044022711, "failed": false, "min_pelvis_z_m": 0.421460896730423},
     {"repetitions": 1000000, "weakest_torque_scale": 0.29999948229543894, "failed": false, "min_pelvis_z_m": 0.4147565960884094}
   ],
-  "interpretation": "One deterministic single-world rollout per checkpoint. This validates the closed-loop path but does not estimate a survival probability or physical lifetime."
+  "independent_robustness_trials": {
+    "trials": 5,
+    "paired_healthy_and_worn": true,
+    "perturbations": {
+      "pose_xy_jitter_m": 0.01,
+      "yaw_jitter_deg": 2.0,
+      "joint_jitter_rad": 0.01
+    },
+    "healthy": {
+      "successful": 5,
+      "failed": 0,
+      "survival_rate": 1.0,
+      "wilson_ci95": [0.5655175352168251, 1.0]
+    },
+    "conditional_1m_scale_0p3": {
+      "successful": 3,
+      "failed": 2,
+      "survival_rate": 0.6,
+      "wilson_ci95": [0.2307242812760128, 0.882379225767352],
+      "failure_times_s": [7.78, 7.78]
+    },
+    "wall_time_s": 205.62738108800113,
+    "interpretation": "First paired robustness signal only. Five trials are insufficient for a precise survival estimate."
+  },
+  "interpretation": "The deterministic checkpoints validate the closed-loop path; the five paired jittered trials provide an initial robustness signal. Neither calibrates the model to physical G1 lifetime."
 }
