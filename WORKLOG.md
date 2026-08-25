@@ -13,3 +13,7 @@
 - Added simulator quality gates that abort contaminated batched experiments.
 - Established one-world-per-process as the reference execution path.
 - Started repository/documentation cleanup for external review.
+- Added reproducible tests, doctor command, Git repository and initial commit.
+- Recomputed the load profile from the exact deploy-matched recut: right knee ranked first, left knee second.
+- Ran validated single-world checkpoints through conditional 1M state; all four checkpoints completed without a physical fall, including right-knee torque scale 0.3.
+- Added independent-process paired trial orchestration with multi-GPU scheduling and Wilson confidence intervals; end-to-end healthy/1M smoke trial passed.

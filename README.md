@@ -63,6 +63,20 @@ cd mvp_mujoco
 
 The run is valid only if `failed_envs == 0` and `baseline_validation == "valid"`.
 
+## Independent paired trials
+
+Use independent single-world processes for survival statistics:
+
+```bash
+cd mvp_mujoco
+./run_independent_trials.sh \
+  --trials 10 \
+  --checkpoints 100000,500000,1000000 \
+  --devices cuda:0
+```
+
+On a host with multiple GPUs, pass for example `--devices cuda:0,cuda:1`. Every trial runs its own healthy control before worn checkpoints with the same seed. Do not replace this path with a large `--num-envs` value until MJWarp batch equivalence is demonstrated.
+
 ## Scientific scope
 
 The current `alpha` is an intentionally accelerated and uncalibrated coefficient. Current repetition counts are integration stress-test coordinates, not predictions of physical G1 lifetime. See [docs/math_model.md](docs/math_model.md) and [docs/experiment_protocol.md](docs/experiment_protocol.md).

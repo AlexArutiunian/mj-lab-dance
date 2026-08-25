@@ -41,3 +41,16 @@ Use `num_envs=1` as the reference simulator path. Parallelize independent proces
 4. Replace the scalar accelerated proxy with a parameterized multi-channel model.
 5. Add real-robot telemetry schema for current, torque, temperature and faults.
 6. Run paired healthy/worn Monte Carlo jobs as independent processes.
+
+## First validated conditional checkpoint run
+
+Single-world `RB+Y` checkpoints using the deploy-clip load profile completed on 2026-08-25:
+
+```text
+R=0:       right-knee scale 1.0000, fall 0/1
+R=100k:    right-knee scale 0.9159, fall 0/1
+R=500k:    right-knee scale 0.6085, fall 0/1
+R=1M:      right-knee scale 0.3000, fall 0/1
+```
+
+This is a simulator sanity result, not a survival probability. It invalidates the earlier interpretation that scale `0.3` necessarily causes a fall; that claim came from contaminated multi-world runs. Independent repeated trials are still required.

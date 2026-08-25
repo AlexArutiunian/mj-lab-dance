@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
+import random
 import sys
 import time
 from pathlib import Path
@@ -16,6 +18,14 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = ROOT.parent
 DANCE_SIM = BUNDLE / "dance_sim"
 MJLAB_REPO = DANCE_SIM / "external" / "unitree_rl_mjlab"
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _add_runtime_paths() -> None:
@@ -142,6 +152,7 @@ def main() -> None:
     p.add_argument("--out", type=Path, default=ROOT / "outputs" / "baseline_dance.npz")
     p.add_argument("--duration", type=float, default=None, help="Seconds to log. Default: config dance_duration_s.")
     p.add_argument("--device", default="cuda:0")
+    p.add_argument("--seed", type=int, default=1)
     p.add_argument("--num-envs", type=int, default=1)
     p.add_argument("--keep-domain-randomization", action="store_true")
     p.add_argument("--no-stop-on-failure", action="store_true", help="Keep logging after failure threshold is crossed.")
@@ -153,14 +164,20 @@ def main() -> None:
     cfg = json.loads(cfg_path.read_text())
     duration = float(args.duration if args.duration is not None else cfg.get("dance_duration_s", 120.0))
     failure_cfg = cfg.get("failure", {})
-    base_height_m = float(failure_cfg.get("base_height_m", 0.40))
-    max_abs_roll = math.radians(float(failure_cfg.get("max_abs_roll_deg", 60.0)))
-    max_abs_pitch = math.radians(float(failure_cfg.get("max_abs_pitch_deg", 60.0)))
+    pelvis_height_m = float(failure_cfg.get("pelvis_height_m", 0.35))
+    torso_height_m = float(failure_cfg.get("torso_height_m", 0.30))
     hold_s = float(failure_cfg.get("failure_hold_s", 0.15))
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
 
     env_cfg = load_env_cfg(args.task, play=True)
     agent_cfg = load_rl_cfg(args.task)
     env_cfg.scene.num_envs = args.num_envs
+    env_cfg.seed = int(args.seed)
     if not args.keep_domain_randomization:
         env_cfg.events = {}
     env_cfg.terminations = {}
@@ -178,6 +195,8 @@ def main() -> None:
     raw_env = ManagerBasedRlEnv(cfg=env_cfg, device=args.device, render_mode=None)
     env = RslRlVecEnvWrapper(raw_env, clip_actions=agent_cfg.clip_actions)
     robot = raw_env.scene["robot"]
+    pelvis_body_id = list(robot.body_names).index("pelvis")
+    torso_body_id = list(robot.body_names).index("torso_link")
 
     dt = float(raw_env.step_dt)
     steps = int(math.ceil(duration / dt))
@@ -211,6 +230,8 @@ def main() -> None:
     rolls: list[float] = []
     pitches: list[float] = []
     tracking_error: list[float] = []
+    pelvis_zs: list[float] = []
+    torso_zs: list[float] = []
     failed = False
     failure_time_s = math.nan
     failure_reason = ""
@@ -226,6 +247,8 @@ def main() -> None:
         root_pos = robot.data.root_link_pos_w[0].detach().cpu().numpy()
         root_quat = robot.data.root_link_quat_w[0].detach().cpu().numpy()
         roll, pitch = _quat_wxyz_to_roll_pitch(root_quat)
+        pelvis_z = float(robot.data.body_com_pos_w[0, pelvis_body_id, 2].detach().cpu())
+        torso_z = float(robot.data.body_com_pos_w[0, torso_body_id, 2].detach().cpu())
 
         times.append((i + 1) * dt)
         qvels.append(robot.data.joint_vel[0].detach().cpu().numpy().astype(np.float64))
@@ -233,6 +256,8 @@ def main() -> None:
         base_z.append(float(root_pos[2]))
         rolls.append(float(roll))
         pitches.append(float(pitch))
+        pelvis_zs.append(pelvis_z)
+        torso_zs.append(torso_z)
 
         cmd = raw_env.command_manager.get_command("motion")
         terr = 0.0
@@ -241,12 +266,8 @@ def main() -> None:
         tracking_error.append(terr)
 
         reason = ""
-        if float(root_pos[2]) < base_height_m:
-            reason = "base_height"
-        elif abs(roll) > max_abs_roll:
-            reason = "roll"
-        elif abs(pitch) > max_abs_pitch:
-            reason = "pitch"
+        if pelvis_z < pelvis_height_m and torso_z < torso_height_m:
+            reason = "floor_level_fall"
         if reason:
             bad_count += 1
             if not failed and bad_count >= hold_steps:
@@ -281,10 +302,17 @@ def main() -> None:
         roll=np.asarray(rolls, dtype=np.float64),
         pitch=np.asarray(pitches, dtype=np.float64),
         tracking_error=np.asarray(tracking_error, dtype=np.float64),
+        pelvis_z=np.asarray(pelvis_zs, dtype=np.float64),
+        torso_z=np.asarray(torso_zs, dtype=np.float64),
         failed=np.asarray([failed]),
         failure_time_s=np.asarray([failure_time_s]),
         failure_reason=np.asarray([failure_reason], dtype=str),
         source=np.asarray(["dance_sim_mjlab_onnx"], dtype=str),
+        seed=np.asarray([args.seed], dtype=np.int64),
+        motion_file=np.asarray([str(args.motion_file.resolve())], dtype=str),
+        motion_sha256=np.asarray([_sha256(args.motion_file.resolve())], dtype=str),
+        policy_file=np.asarray([str(args.policy.resolve())], dtype=str),
+        policy_sha256=np.asarray([_sha256(args.policy.resolve())], dtype=str),
     )
     elapsed = time.perf_counter() - started
     print(f"[INFO] wrote {args.out}")

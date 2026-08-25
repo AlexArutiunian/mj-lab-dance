@@ -67,3 +67,10 @@ Correctness-preserving order:
 5. increase batch size only after equivalence tests pass.
 
 GPU speed does not compensate for an invalid healthy baseline.
+
+The implemented entry point is:
+
+```bash
+cd mvp_mujoco
+./run_independent_trials.sh --trials 10 --devices cuda:0,cuda:1
+```

@@ -11,7 +11,7 @@ POLICIES = ROOT / "dance_sim" / "assets" / "policies" / "mimic"
 
 
 class MotionIdentityTests(unittest.TestCase):
-    def test_rb_y_clip_is_exact_full_motion_slice(self) -> None:
+    def test_rb_y_clip_matches_full_motion_slice_with_export_tolerance(self) -> None:
         full = np.load(POLICIES / "dance1_subject2" / "params" / "dance1_subject2.npz")
         short = np.load(
             POLICIES

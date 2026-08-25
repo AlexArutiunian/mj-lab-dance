@@ -203,6 +203,7 @@ def main() -> None:
     p.add_argument("--target-repetition", type=int, default=1000000)
     p.add_argument("--target-scale", type=float, default=None)
     p.add_argument("--uniform-torque-scale", type=float, default=None)
+    p.add_argument("--damage-profile", type=Path, default=ROOT / "outputs" / "damage_profile.json")
     p.add_argument("--pose-xy-jitter-m", type=float, default=0.0)
     p.add_argument("--yaw-jitter-deg", type=float, default=0.0)
     p.add_argument("--joint-jitter-rad", type=float, default=0.0)
@@ -230,7 +231,7 @@ def main() -> None:
         torch.cuda.manual_seed_all(args.seed)
 
     cfg = json.loads((ROOT / "config.json").read_text())
-    profile = json.loads((ROOT / "outputs" / "damage_profile.json").read_text())
+    profile = json.loads(args.damage_profile.read_text())
     duration = float(args.duration if args.duration is not None else cfg.get("dance_duration_s", 120.0))
     failure_cfg = cfg.get("failure", {})
     pelvis_height_m = float(failure_cfg.get("pelvis_height_m", 0.45))
@@ -266,7 +267,7 @@ def main() -> None:
         env_cfg = load_env_cfg(args.task, play=True)
         env_cfg.scene.num_envs = int(args.num_envs)
         env_cfg.scene.env_spacing = float(args.env_spacing)
-        env_cfg.seed = int(args.seed + checkpoint % 1_000_000)
+        env_cfg.seed = int(args.seed)
         env_cfg.events = {}
         env_cfg.terminations = {}
         env_cfg.sim.nconmax = max(env_cfg.sim.nconmax, max(128, args.num_envs * 16))
@@ -304,7 +305,7 @@ def main() -> None:
         dt = float(raw_env.step_dt)
         steps = int(math.ceil(duration / dt))
         hold_steps = max(1, int(round(hold_s / dt)))
-        obs = env.reset(seed=int(args.seed + checkpoint % 1_000_000))
+        obs = env.reset(seed=int(args.seed))
         print(
             "[BATCH RESET] "
             f"checkpoint={checkpoint} steps={steps} dt={dt:.4f}s "
@@ -479,6 +480,7 @@ def main() -> None:
         "target_repetition": int(args.target_repetition),
         "target_scale": target_scale,
         "uniform_torque_scale": args.uniform_torque_scale,
+        "damage_profile": str(args.damage_profile.resolve()),
         "pose_xy_jitter_m": float(args.pose_xy_jitter_m),
         "yaw_jitter_deg": float(args.yaw_jitter_deg),
         "joint_jitter_rad": float(args.joint_jitter_rad),
