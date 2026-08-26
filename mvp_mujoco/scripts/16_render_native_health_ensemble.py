@@ -137,6 +137,8 @@ def _representatives(input_dir: Path) -> list[tuple[int, dict[str, str], str]]:
 def _render_single(model: mujoco.MjModel, input_dir: Path, output_dir: Path, checkpoint: int, row: dict[str, str], label: str) -> Path:
     trace = np.load(input_dir / f"checkpoint_{checkpoint}" / f"trial_{int(row['sample']):03d}.npz")
     width, height, fps = 1920, 1080, 30
+    model.vis.global_.offwidth = max(model.vis.global_.offwidth, width)
+    model.vis.global_.offheight = max(model.vis.global_.offheight, height)
     renderer = mujoco.Renderer(model, height=height, width=width)
     data = mujoco.MjData(model)
     output = output_dir / f"{label}.mp4"
