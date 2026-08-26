@@ -31,3 +31,4 @@
 - Added explicit CUDA synchronization at MJWarp-observation/ORT-input and ORT-output/MJWarp-action boundaries. Targeted failing seeds improved, but a larger gate still failed; the simulator incident remains unresolved.
 - Qualified CPU MJWarp physics with ONNX `CPUExecutionProvider`: 100 fresh processes on seeds 1--100 completed 100/100 with zero falls and identical trajectory extrema.
 - Set CPU as the default independent-trial reference and labeled GPU evidence unqualified pending CPU trajectory equivalence.
+- Re-ran corrected conditional checkpoints on the CPU reference: healthy, 100k/0.9159x and 500k/0.6085x completed; conditional 1M/0.3x fell at 2.90 s.

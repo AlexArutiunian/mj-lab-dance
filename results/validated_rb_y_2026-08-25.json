@@ -72,6 +72,17 @@
     "wall_time_s": 2070.2671194120003,
     "summary_sha256": "03e166095b0c5cf97e90466c5178d072daea267ba502b17c0d4e5c506f16e414"
   },
+  "cpu_conditional_checkpoints": {
+    "seed": 1,
+    "summary_sha256": "0dfc1ff4b9fb6acfd9fc99d49cc411a1e62038e2d2ab73b43ac8c7929ab287f6",
+    "results": [
+      {"repetitions": 0, "weakest_torque_scale": 1.0, "failed": false},
+      {"repetitions": 100000, "weakest_torque_scale": 0.9158962858781496, "failed": false},
+      {"repetitions": 500000, "weakest_torque_scale": 0.6085026044022711, "failed": false},
+      {"repetitions": 1000000, "weakest_torque_scale": 0.29999948229543894, "failed": true, "failure_time_s": 2.9}
+    ],
+    "interpretation": "Deterministic simulator sensitivity under an uncalibrated wear law; not a survival estimate."
+  },
   "exact_start_dose_response": [
     {"right_knee_target_scale": 0.8, "failed": false},
     {"right_knee_target_scale": 0.5, "failed": false},

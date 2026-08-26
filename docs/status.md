@@ -60,6 +60,18 @@ Use this CPU path as the healthy scientific reference. GPU MJWarp remains
 unqualified and may only be used diagnostically until it matches CPU
 trajectories and passes its own 100-process gate.
 
+Corrected CPU conditional checkpoints on seed 1 then produced:
+
+```text
+R=0:       scale 1.0000, completed
+R=100k:    right-knee scale 0.9159, completed
+R=500k:    right-knee scale 0.6085, completed
+R=1M:      right-knee scale 0.3000, floor-level fall at 2.90 s
+```
+
+This is a deterministic sensitivity curve under an uncalibrated wear law, not
+a physical lifetime or survival probability.
+
 ## Next work
 
 1. Finish a validated single-world experiment runner with repeatable seeds and provenance.
