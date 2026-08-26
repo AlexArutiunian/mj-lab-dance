@@ -144,3 +144,29 @@ right-knee target scale 0.3: floor-level fall at 2.76 s
 These are deterministic simulator sensitivity points, not survival
 probabilities. The mapping from `1M` to `scale=0.3` is still an uncalibrated
 model assumption and must not be described as measured physical lifetime.
+
+## Native conditional 100-member health ensemble
+
+The deterministic reference gate and the worn-population sensitivity test are
+separate experiments. The first has 100 exact copies of the healthy model;
+they are required to agree and completed `100/100`. The second keeps that
+exact start, policy, motion and native-MuJoCo physics, but samples one
+accelerated wear-rate multiplier per virtual robot from
+`LogNormal(mean=1.0, CV=0.25)`. It therefore represents uncertainty in the
+uncalibrated wear model, not a measured G1 fleet failure rate.
+
+The completed native run (`seed=20260826`, 100 virtual robots per checkpoint,
+16.24 s `RB+Y` dance) produced:
+
+| Completed dances | Completed / 100 | Falls / 100 | Median weakest-joint health | Median weakest torque scale | Median joint-position RMS | Median pelvis RMS | Median torso orientation RMS |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | 100 | 0 | 1.000 | 1.000 | 0.000 rad | 0.000 m | 0.000 deg |
+| 100k | 100 | 0 | 0.938 | 0.918 | 0.009 rad | 0.022 m | 0.818 deg |
+| 500k | 99 | 1 | 0.683 | 0.608 | 0.020 rad | 0.040 m | 1.380 deg |
+| 1M | 31 | 69 | 0.393 | 0.322 | 0.255 rad | 0.628 m | 57.965 deg |
+
+The full p05/p50/p95 metrics and every trace are written under
+`mvp_mujoco/outputs/rb_y_16s/native_health_ensemble_100/`. This supports the
+claimed qualitative conclusion: under this assumed damage law, increasing wear
+first increases trajectory tracking error and only later produces floor-level
+falls. It does **not** establish when a physical G1 reaches those checkpoints.

@@ -8,7 +8,9 @@ torque-level PD control, and the Unitree simulator's 2 ms physics step.
 from __future__ import annotations
 
 import argparse
+import json
 import math
+import sys
 import time
 from pathlib import Path
 
@@ -20,6 +22,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+MVP = ROOT.parent / "mvp_mujoco"
 UNITREE = ROOT / "external" / "unitree_rl_mjlab"
 DEFAULT_POLICY_DIR = ROOT / "assets/policies/mimic/dance1_subject2_16s_faststart"
 
@@ -79,6 +82,17 @@ def load_args() -> argparse.Namespace:
     parser.add_argument("--viewer", action="store_true")
     parser.add_argument("--realtime", action="store_true", help="Pace headless mode to wall time.")
     parser.add_argument("--trace", type=Path, default=None)
+    parser.add_argument(
+        "--repetition",
+        type=int,
+        default=1,
+        help="Virtual dance index under the accelerated damage profile; 1 is healthy.",
+    )
+    parser.add_argument(
+        "--damage-profile",
+        type=Path,
+        default=MVP / "outputs/rb_y_16s/damage_profile_1m_scale03.json",
+    )
     parser.add_argument("--torque-scale", type=float, default=1.0)
     parser.add_argument(
         "--joint-torque-scale",
@@ -120,11 +134,26 @@ def main() -> None:
 
     if not 0.0 < args.torque_scale <= 1.0:
         raise ValueError("--torque-scale must be in (0, 1]")
-    torque_scales = np.full(model.nu, args.torque_scale, dtype=np.float64)
     joint_names = [
         mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, int(model.actuator_trnid[i, 0]))
         for i in range(model.nu)
     ]
+    if args.repetition < 1:
+        raise ValueError("--repetition must be >= 1")
+    health = np.ones(model.nu, dtype=np.float64)
+    torque_scales = np.full(model.nu, args.torque_scale, dtype=np.float64)
+    if args.repetition > 1:
+        sys.path.insert(0, str(MVP))
+        from wearbench.damage import damage_after_repetitions, health_from_damage, torque_scale_from_health
+
+        profile = json.loads(args.damage_profile.read_text())
+        rows = {str(row["joint"]): row for row in profile["joints"]}
+        severity = np.asarray([rows[name]["severity_norm"] for name in joint_names], dtype=np.float64)
+        health = health_from_damage(
+            damage_after_repetitions(severity, args.repetition - 1, float(profile["alpha_accelerated"]))
+        )
+        health_scales = torque_scale_from_health(health, floor=0.10, exponent=1.5)
+        torque_scales *= health_scales
     for spec in args.joint_torque_scale:
         name, separator, raw_scale = spec.partition("=")
         if not separator or name not in joint_names:
@@ -153,7 +182,15 @@ def main() -> None:
     gyro_adr = int(model.sensor_adr[gyro_sensor])
 
     trace: dict[str, list[np.ndarray | float | int]] = {
-        "obs": [], "actions": [], "qpos": [], "qvel": [], "ctrl": [], "ncon": []
+        "obs": [],
+        "actions": [],
+        "qpos": [],
+        "qvel": [],
+        "ctrl": [],
+        "ncon": [],
+        "pelvis_pos": [],
+        "torso_pos": [],
+        "torso_quat": [],
     }
     min_pelvis = float("inf")
     min_torso = float("inf")
@@ -202,6 +239,9 @@ def main() -> None:
             trace["qvel"].append(data.qvel.copy())
             trace["ctrl"].append(data.ctrl.copy())
             trace["ncon"].append(int(data.ncon))
+            trace["pelvis_pos"].append(data.xipos[pelvis_body].copy())
+            trace["torso_pos"].append(data.xipos[torso_body].copy())
+            trace["torso_quat"].append(data.xquat[torso_body].copy())
 
     if args.viewer:
         with mujoco.viewer.launch_passive(model, data, show_left_ui=False, show_right_ui=False) as viewer:
@@ -240,7 +280,8 @@ def main() -> None:
         f"realtime={steps * control_dt / elapsed:.2f}x min_pelvis={min_pelvis:.6f} "
         f"min_torso={min_torso:.6f} final_root_z={data.qpos[2]:.6f} "
         f"failed={int(failed)} failure_t={failure_step * control_dt if failed else -1:.2f} "
-        f"weakest={joint_names[weakest_id]} scale={torque_scales[weakest_id]:.3f}"
+        f"repetition={args.repetition} weakest={joint_names[weakest_id]} "
+        f"health={health[weakest_id]:.3f} scale={torque_scales[weakest_id]:.3f}"
     )
 
 

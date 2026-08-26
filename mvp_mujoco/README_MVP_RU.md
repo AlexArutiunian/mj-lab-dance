@@ -15,6 +15,9 @@
 - `scripts/04_search_failure_iteration.py` — быстрый binary search первой failing repetition.
 - `scripts/05_visualize.py` — графики.
 - `scripts/07_search_dance_sim_failure.py` — binary search через bundled `../dance_sim`.
+- `scripts/15_run_native_health_sweep.py` — 100 different virtual wear-rate
+  realisations on the deterministic native-MuJoCo deploy reference, with
+  trajectory deviation against the healthy trace.
 - `config.json` — параметры первой демонстрации.
 
 ## Быстрый путь через bundled dance_sim
@@ -77,3 +80,19 @@ Torque/force capability:
 ## Ключевое ограничение
 
 `alpha` в MVP — искусственный accelerated-aging coefficient. Он нужен только для демонстрации, что closed loop работает. Это не число ресурса реального G1.
+
+## Ensemble из 100 виртуальных роботов
+
+```bash
+./run_native_health_sweep.sh --trials 100 --workers 6 --seed 20260826 \
+  --wear-rate-cv 0.25 --out-dir outputs/rb_y_16s/native_health_ensemble_100
+```
+
+На checkpoint `0` все 100 прогонов обязаны совпадать: это проверка
+детерминизма одного и того же робота, а не оценка вероятности. На остальных
+checkpoint у каждого виртуального робота свой множитель скорости износа
+`LogNormal(mean=1.0, CV=0.25)`, но одинаковы старт, policy, motion и physics.
+В `summary.json`/`summary.csv` записываются завершения/падения и p05/p50/p95
+отклонений joint state, action, pelvis, torso и ориентации. До калибровки по
+реальным данным это только условная чувствительность модели, не прогноз
+надёжности реального G1.

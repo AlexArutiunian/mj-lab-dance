@@ -45,6 +45,26 @@ Run a headless right-knee torque-capability checkpoint:
   --joint-torque-scale right_knee_joint=0.5
 ```
 
+Run the native 100-member conditional health ensemble:
+
+```bash
+cd mvp_mujoco
+./run_native_health_sweep.sh \
+  --trials 100 --workers 6 --seed 20260826 --wear-rate-cv 0.25 \
+  --out-dir outputs/rb_y_16s/native_health_ensemble_100
+```
+
+This has two deliberately separate controls. At `0` completed dances all 100
+processes are exact replicas: this is a deterministic regression gate, and
+therefore they must have the same physical outcome. At worn checkpoints,
+each virtual robot receives an independent lognormal multiplier for the
+accelerated joint-wear rate (mean `1.0`, CV `0.25`) while preserving the exact
+initial state, policy, motion and physics. Thus the resulting completion count
+is conditional parameter sensitivity, **not** a population-level G1 failure
+probability. The runner writes complete traces and percentiles of joint,
+action, pelvis, torso and orientation deviation into `summary.json` and
+`summary.csv`.
+
 The deploy clip is a numerically equivalent recut of the full motion interval:
 
 ```text
