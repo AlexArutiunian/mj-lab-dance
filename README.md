@@ -65,6 +65,19 @@ probability. The runner writes complete traces and percentiles of joint,
 action, pelvis, torso and orientation deviation into `summary.json` and
 `summary.csv`.
 
+Render all saved ensemble traces as four 4K `10x10` collages plus four
+full-HD representative videos:
+
+```bash
+cd mvp_mujoco
+MUJOCO_GL=egl ./run_render_native_health_ensemble.sh
+```
+
+The renderer replays saved native traces rather than rerunning the controller,
+so every video corresponds exactly to the recorded trial metrics. Videos are
+generated under the ensemble output directory and excluded from Git because
+the high-quality evidence set is large.
+
 The deploy clip is a numerically equivalent recut of the full motion interval:
 
 ```text
