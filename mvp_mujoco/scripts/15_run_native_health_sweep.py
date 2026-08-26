@@ -146,6 +146,12 @@ def main() -> None:
         default=0.25,
         help="Conditional coefficient of variation for the accelerated wear-rate multiplier.",
     )
+    parser.add_argument(
+        "--common-random-numbers",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Reuse each virtual robot's wear-rate multiplier at every worn checkpoint.",
+    )
     parser.add_argument("--duration", type=float, default=16.24)
     parser.add_argument("--damage-profile", type=Path, default=DEFAULT_PROFILE)
     parser.add_argument("--out-dir", type=Path, default=ROOT / "outputs/rb_y_16s/native_health_sweep")
@@ -167,22 +173,16 @@ def main() -> None:
     reference = np.load(reference_trace)
     sigma = math.sqrt(math.log1p(args.wear_rate_cv**2))
     rng = np.random.default_rng(args.seed)
+    base_wear_rates = rng.lognormal(mean=-0.5 * sigma**2, sigma=sigma, size=args.trials)
     summary: list[dict[str, object]] = []
     for checkpoint in checkpoints:
         repetition = checkpoint + 1
-        trace_path = args.out_dir / f"trace_checkpoint_{checkpoint}.npz"
-        subprocess.run(
-            [
-                str(NATIVE_RUNNER), "--duration", str(args.duration), "--repetition", str(repetition),
-                "--damage-profile", str(args.damage_profile.resolve()), "--trace", str(trace_path),
-            ],
-            check=True,
-            cwd=ROOT,
-        )
         scenario_dir = args.out_dir / f"checkpoint_{checkpoint}"
         scenario_dir.mkdir(exist_ok=True)
         if checkpoint == 0:
             wear_rates = np.ones(args.trials, dtype=np.float64)
+        elif args.common_random_numbers:
+            wear_rates = base_wear_rates
         else:
             # Shift log-space mean so E[wear_rate] is exactly one. This makes
             # the nominal accelerated profile the ensemble mean.
@@ -257,10 +257,11 @@ def main() -> None:
         print(json.dumps(summary[-1], indent=2), flush=True)
     result = {
         "status": "CONDITIONAL_NATIVE_PARAMETER_ENSEMBLE",
-        "protocol": "100 fresh exact-start processes per checkpoint. Each worn virtual robot samples an accelerated wear-rate multiplier; it is parameter sensitivity, not measured G1 population reliability.",
+        "protocol": "Fresh exact-start processes per checkpoint. Each worn virtual robot receives an accelerated wear-rate multiplier; it is parameter sensitivity, not measured G1 population reliability.",
         "duration_s": args.duration,
         "trials_per_checkpoint": args.trials,
         "seed": args.seed,
+        "common_random_numbers": args.common_random_numbers,
         "wear_rate_distribution": {
             "family": "lognormal",
             "mean": 1.0,
