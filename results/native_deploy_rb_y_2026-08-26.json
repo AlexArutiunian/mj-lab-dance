@@ -1,0 +1,33 @@
+{
+  "status": "QUALIFIED_NATIVE_DEPLOY_REFERENCE",
+  "date": "2026-08-26",
+  "backend": "native_mujoco",
+  "mujoco_version": "3.5.0",
+  "onnxruntime_version": "1.22.0",
+  "unitree_rl_mjlab_commit": "1425b15f73bd4095f0df53709d7c389c3eb9e790",
+  "trials": 100,
+  "completed": 100,
+  "falls": 0,
+  "duration_s": 16.24,
+  "control_dt_s": 0.02,
+  "physics_dt_s": 0.002,
+  "minimum_pelvis_height_m": 0.492385,
+  "minimum_torso_height_m": 0.784822,
+  "final_root_height_m": 0.758102,
+  "model_sha256": "f96a137240a2ed248e115fb6e5253959a54cc23216188ac538456d2ac179b6fd",
+  "motion_sha256": "db60ad9d3423e8261c03b6e2294cfbdcc12c3a54c744dbc6e204b9a981d46eb8",
+  "policy_sha256": "0f1922f5b20189cc0307a8f91ac9eb655f07527805104d1653531d9e469c3231",
+  "deploy_config_sha256": "61e81a3ec7d3f3c7286ee39d043e8ca4f8e05257a5f6341825955a47e31bfbc1",
+  "failure_criterion": {
+    "pelvis_height_m": 0.45,
+    "torso_height_m": 0.55,
+    "hold_s": 0.5
+  },
+  "conditional_right_knee_torque_scale": {
+    "1.0": "completed",
+    "0.8": "completed",
+    "0.5": "completed",
+    "0.3": "floor_level_fall_at_3.74_s"
+  },
+  "claim_boundary": "Deterministic deploy-simulator qualification and conditional torque-capability sensitivity only; not a calibrated physical lifetime prediction."
+}

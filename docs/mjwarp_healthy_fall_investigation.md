@@ -1,6 +1,6 @@
 # MJWarp healthy fall investigation
 
-Updated: 2026-08-26. Status: **CPU REFERENCE QUALIFIED; GPU PATH UNRESOLVED**.
+Updated: 2026-08-26. Status: **NATIVE DEPLOY REFERENCE QUALIFIED; GPU MJWARP NONDETERMINISTIC**.
 
 ## Problem statement
 
@@ -126,6 +126,44 @@ but did not make a larger sweep failure-free.
 These changes remove known confounders and must remain. They were insufficient
 to qualify GPU execution but are retained in the qualified CPU reference.
 
+## Paired-trace localization
+
+The runner now optionally records policy observations, actions, qpos, qvel,
+controls, contact counts, constraint counts and solver iterations at every
+control step. CPU/GPU traces for seed 10 begin with float32-scale differences
+and first disagree in contact/constraint counts at control step 34 (`0.68 s`).
+The closed-loop policy then amplifies the state difference.
+
+More importantly, repeated GPU/GPU traces with the same seed and command are
+not reproducible. Newton repeats first diverged in qpos at steps 44--48 and in
+contact sets later. CG produced two identical repeats followed by a third that
+diverged at step 50. MJWarp 3.5.0 does not support PGS. This rules out CPU being
+the sole source of the discrepancy and localizes the incident to the GPU
+MJWarp execution path plus closed-loop amplification.
+
+MuJoCo Warp's upstream determinism request remains open as issue `#562`.
+
+## Native MuJoCo deploy reference
+
+`dance_sim/scripts/native_mujoco_deploy.py` implements the Unitree deploy loop
+without DDS: the upstream `scene_g1.xml`, 2 ms native MuJoCo physics, 20 ms
+policy period, deploy `kp/kd`, action scale/offset, motion indexing and torso
+orientation observation. The ONNX hash matches the Unitree deploy artifact.
+
+Results from 100 fresh processes:
+
+```text
+completed:          100/100
+floor-level falls:  0
+min pelvis height:  0.492385 m
+min torso height:   0.784822 m
+final root height:  0.758102 m
+```
+
+Three full traced repeats were bit-identical. The backend runs around `5x`
+realtime headless and therefore supports smooth realtime visualization without
+GPU physics.
+
 ## Current hypotheses
 
 1. MJWarp contact/constraint kernels are numerically nondeterministic near a
@@ -133,28 +171,24 @@ to qualify GPU execution but are retained in the qualified CPU reference.
    solver ordering.
 2. The policy is less robust in simulation than on hardware because contact,
    actuator, latency or state-estimation models differ from the deployed G1.
-3. Native MuJoCo CPU and MJWarp may diverge before the visible fall. A paired
-   trajectory comparison has not yet been completed.
+3. Confirmed: native MuJoCo and MJWarp diverge before the visible fall, and GPU
+   MJWarp also diverges from itself across identical repeats.
 4. Per-step telemetry synchronization changes scheduling enough to keep a
    marginal trajectory on the stable branch.
 
 ## Required next steps
 
-1. Capture qpos, qvel, observations, actions, contacts, constraint counts and
-   solver state every control/physics step for a passing and failing process.
-2. Find the first divergence, well before the floor-level event.
-3. Run the same initial state and action loop in native MuJoCo CPU. If native is
-   deterministic and stable, make it the scientific single-world reference and
-   treat MJWarp as acceleration-only after equivalence qualification.
-4. Compare simulator state against real G1 telemetry from the reported 100
+1. Compare native simulator state against real G1 telemetry from the reported 100
    successful runs, especially around clip time 8--11 s.
-5. Rerun conditional wear checkpoints on the qualified CPU reference before
-   interpreting any worn result.
+2. Calibrate the native actuator degradation model against measured torque,
+   current, temperature and fault telemetry.
+3. Requalify a future MJWarp release only after same-seed self-repeats are
+   deterministic and a 100-process healthy gate passes.
 
 ## Claim boundary
 
 Do not claim that the physical robot has a baseline fall probability, that
 scale 0.3 has a validated survival rate, or that one million dances predicts a
-physical lifetime. The CPU healthy reference is qualified, but worn CPU results
-and the wear law still require rerunning/calibration. GPU MJWarp remains an open
-simulator issue.
+physical lifetime. Native MuJoCo is qualified as the deterministic deploy
+simulator baseline. The wear law still requires physical calibration, and GPU
+MJWarp results remain stress evidence rather than deterministic baseline data.

@@ -228,6 +228,7 @@ def main() -> None:
     p.add_argument("--motion-start-time-s", type=float, default=0.0)
     p.add_argument("--num-envs", type=int, default=1024)
     p.add_argument("--duration", type=float, default=None)
+    p.add_argument("--solver", choices=("newton", "cg"), default="newton")
     p.add_argument("--device", default="cuda:0")
     p.add_argument("--checkpoints", default="0,1000,10000,100000,1000000")
     p.add_argument("--seed", type=int, default=1)
@@ -252,6 +253,12 @@ def main() -> None:
     )
     p.add_argument("--identical-state-tol", type=float, default=1.0e-4)
     p.add_argument("--progress-interval-s", type=float, default=10.0)
+    p.add_argument(
+        "--trace-file",
+        type=Path,
+        default=None,
+        help="Save per-control-step forensic state for a single checkpoint/world.",
+    )
     p.add_argument("--out-dir", type=Path, default=ROOT / "outputs" / "batched_wear_survival")
     args = p.parse_args()
     reset_protocol = (
@@ -292,6 +299,8 @@ def main() -> None:
         execution_device=args.device,
     )
     checkpoints = _parse_int_list(args.checkpoints)
+    if args.trace_file is not None and (int(args.num_envs) != 1 or len(checkpoints) != 1):
+        raise ValueError("--trace-file requires exactly one world and one checkpoint")
     if 0 not in checkpoints and not args.allow_invalid_baseline:
         raise ValueError("Validated runs must include checkpoint 0 as the healthy control.")
     records: list[dict[str, object]] = []
@@ -311,6 +320,7 @@ def main() -> None:
         env_cfg.seed = int(args.seed)
         env_cfg.events = {}
         env_cfg.terminations = {}
+        env_cfg.sim.mujoco.solver = args.solver
         env_cfg.sim.nconmax = max(env_cfg.sim.nconmax, max(128, args.num_envs * 16))
         env_cfg.sim.njmax = max(env_cfg.sim.njmax, max(512, args.num_envs * 64))
         motion_cmd = env_cfg.commands["motion"]
@@ -370,9 +380,34 @@ def main() -> None:
         started = time.perf_counter()
         last_progress = started
         last_step = 0
+        trace: dict[str, list[np.ndarray]] | None = None
+        if args.trace_file is not None:
+            trace = {
+                "actor_obs": [],
+                "actions": [],
+                "qpos": [],
+                "qvel": [],
+                "ctrl": [],
+                "ncon": [],
+                "nefc": [],
+                "solver_niter": [],
+            }
         for i in range(steps):
             actions = policy(obs)
+            if trace is not None:
+                trace["actor_obs"].append(obs["actor"][0].detach().cpu().numpy().copy())
+                trace["actions"].append(actions[0].detach().cpu().numpy().copy())
             obs = env.step(actions)
+            if trace is not None:
+                sim_data = raw_env.sim.data
+                trace["qpos"].append(sim_data.qpos[0].detach().cpu().numpy().copy())
+                trace["qvel"].append(sim_data.qvel[0].detach().cpu().numpy().copy())
+                trace["ctrl"].append(sim_data.ctrl[0].detach().cpu().numpy().copy())
+                trace["ncon"].append(np.asarray(sim_data.nacon.detach().cpu().numpy()).copy())
+                trace["nefc"].append(np.asarray(sim_data.nefc[0].detach().cpu().numpy()).copy())
+                trace["solver_niter"].append(
+                    np.asarray(sim_data.solver_niter[0].detach().cpu().numpy()).copy()
+                )
 
             if (
                 args.physics_origin_mode == "local"
@@ -429,6 +464,16 @@ def main() -> None:
                 last_step = done_steps
 
         elapsed = time.perf_counter() - started
+        if trace is not None:
+            args.trace_file.parent.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(
+                args.trace_file,
+                **{name: np.asarray(values) for name, values in trace.items()},
+                device=np.asarray(args.device),
+                seed=np.asarray(args.seed),
+                checkpoint=np.asarray(checkpoint),
+                step_dt=np.asarray(dt),
+            )
         failed_cpu = failed.detach().cpu().numpy().astype(bool)
         min_z_cpu = min_z.detach().cpu().numpy()
         min_pelvis_z_cpu = min_pelvis_z.detach().cpu().numpy()
@@ -517,6 +562,7 @@ def main() -> None:
         "checkpoints": checkpoints,
         "duration_s": duration,
         "device": args.device,
+        "solver": args.solver,
         "policy_execution_path": policy.execution_path,
         "onnx_providers": policy.session.get_providers(),
         "motion_start_time_s": float(args.motion_start_time_s),

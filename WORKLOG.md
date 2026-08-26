@@ -32,3 +32,14 @@
 - Qualified CPU MJWarp physics with ONNX `CPUExecutionProvider`: 100 fresh processes on seeds 1--100 completed 100/100 with zero falls and identical trajectory extrema.
 - Set CPU as the default independent-trial reference and labeled GPU evidence unqualified pending CPU trajectory equivalence.
 - Re-ran corrected conditional checkpoints on the CPU reference: healthy, 100k/0.9159x and 500k/0.6085x completed; conditional 1M/0.3x fell at 2.90 s.
+- Added per-step CPU/GPU forensic traces for observations, actions, state,
+  controls, contacts, constraints and solver iterations.
+- Demonstrated same-seed GPU self-divergence around control steps 44--50;
+  Newton and CG are both affected, while PGS is unsupported in MJWarp 3.5.0.
+- Implemented the Unitree native MuJoCo deploy loop with the exact ONNX,
+  deploy observations, 50 Hz policy and 500 Hz torque-level PD control.
+- Qualified native MuJoCo with 100 fresh processes: 100/100 completed, zero
+  falls, identical minimum pelvis/torso and final-root metrics.
+- Added realtime native viewing with health/torque-scale overlay and per-joint
+  torque capability controls. Right-knee scales 1.0, 0.8 and 0.5 completed;
+  scale 0.3 produced a held floor-level fall at 3.74 s.

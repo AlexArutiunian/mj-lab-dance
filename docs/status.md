@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-08-25.
+Updated: 2026-08-26.
 
 ## Confirmed
 
@@ -49,6 +49,35 @@ documented in `docs/mjwarp_healthy_fall_investigation.md`.
 
 ## Qualified healthy reference
 
+The primary one-robot deploy reference is now native MuJoCo using Unitree's
+`scene_g1.xml`, the exact deploy ONNX and the observation/control equations in
+`State_Mimic.cpp` and `deploy.yaml`. A 100-process gate completed `100/100`
+dances with zero falls. Every process produced:
+
+```text
+minimum pelvis height: 0.492385 m
+minimum torso height:  0.784822 m
+final root height:     0.758102 m
+```
+
+Three traced full runs were bit-identical across observations, actions, qpos,
+qvel, controls and contact counts. Native execution reached roughly `5x` real
+time headless and supports smooth realtime viewing.
+
+Native conditional right-knee capability points produced:
+
+```text
+scale 1.0: completed
+scale 0.8: completed
+scale 0.5: completed
+scale 0.3: floor-level fall at 3.74 s
+```
+
+These points validate simulator sensitivity only. The mapping from repetitions
+to torque scale remains uncalibrated.
+
+## Legacy CPU MJWarp reference
+
 The CPU MJWarp physics + ONNX `CPUExecutionProvider` path passed 100 fresh
 processes with seeds 1--100: `100/100` successful, `0` floor-level falls, all
 trials valid. Every run produced identical extrema, including minimum pelvis
@@ -56,9 +85,14 @@ height `0.410171 m` and minimum torso height `0.702344 m`. Wall time with eight
 CPU workers was 2070.27 s. The summary SHA-256 is
 `03e166095b0c5cf97e90466c5178d072daea267ba502b17c0d4e5c506f16e414`.
 
-Use this CPU path as the healthy scientific reference. GPU MJWarp remains
-unqualified and may only be used diagnostically until it matches CPU
-trajectories and passes its own 100-process gate.
+This CPU MJWarp result remains a useful cross-check, but native MuJoCo is the
+primary deploy reference because it follows the Unitree simulation-deployment
+path and runs fast enough for realtime one-robot playback.
+
+GPU MJWarp remains unqualified. Same-seed paired traces first differ in qpos at
+control step 44--50 depending on the repeat and later show different contacts
+and constraints. CG did not eliminate the divergence and PGS is unsupported in
+MJWarp 3.5.0.
 
 Corrected CPU conditional checkpoints on seed 1 then produced:
 

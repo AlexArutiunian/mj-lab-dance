@@ -13,14 +13,17 @@ if [[ $# -gt 0 ]]; then
   shift
 fi
 
+if [[ "$DEVICE" == "cpu" ]]; then
+  ORT_PROVIDER="${ORT_PROVIDER:-cpu}"
+else
+  ORT_PROVIDER="${ORT_PROVIDER:-cuda}"
+fi
+
 exec .venv/bin/python scripts/play_onnx_mjlab.py \
-  --motion-file "${MOTION_FILE:-$DANCE_SIM_DIR/assets/policies/mimic/dance1_subject2/params/dance1_subject2.npz}" \
-  --policy "$DANCE_SIM_DIR/assets/policies/mimic/dance1_subject2/exported/policy.onnx" \
+  --motion-file "${MOTION_FILE:-$DANCE_SIM_DIR/assets/policies/mimic/dance1_subject2_16s_faststart/params/dance1_subject2_16s_faststart.npz}" \
+  --policy "$DANCE_SIM_DIR/assets/policies/mimic/dance1_subject2_16s_faststart/exported/policy.onnx" \
   --viewer native \
   --device "$DEVICE" \
-  --physics-timestep "${PHYSICS_TIMESTEP:-0.005}" \
-  --decimation "${DECIMATION:-4}" \
-  --solver-iterations "${SOLVER_ITERATIONS:-100}" \
-  --ls-iterations "${LS_ITERATIONS:-50}" \
+  --ort-provider "$ORT_PROVIDER" \
   --monitor \
   "$@"

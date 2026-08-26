@@ -60,19 +60,10 @@ def _repetition_scales(
 
 
 def _apply_actuator_scales(raw_env, scales: np.ndarray) -> None:
-    sim = raw_env.sim
-    n = int(scales.shape[0])
-    nominal = sim.mj_model.actuator_forcerange[:n].copy()
-    scaled = nominal * scales[:, None]
-    sim.mj_model.actuator_forcerange[:n] = scaled
-    sim.mj_model.actuator_forcelimited[:n] = 1
+    sys.path.insert(0, str(MVP_DIR))
+    from wearbench.mjlab_mapping import apply_joint_ordered_actuator_scales
 
-    device = torch.device(sim.device)
-    scaled_t = torch.as_tensor(scaled, dtype=sim.model.actuator_forcerange.dtype, device=device)
-    limited_t = torch.ones((n,), dtype=sim.model.actuator_forcelimited.dtype, device=device)
-    sim.model.actuator_forcerange[:n] = scaled_t
-    sim.model.actuator_forcelimited[:n] = limited_t
-    sim.create_graph()
+    apply_joint_ordered_actuator_scales(raw_env, scales)
 
 
 def main() -> None:
@@ -88,11 +79,17 @@ def main() -> None:
     )
     parser.add_argument(
         "--motion-file",
-        default=str(DANCE_SIM_DIR / "experiments/full_20p50_to_end.npz"),
+        default=str(
+            DANCE_SIM_DIR
+            / "assets/policies/mimic/dance1_subject2_16s_faststart/params/dance1_subject2_16s_faststart.npz"
+        ),
     )
     parser.add_argument(
         "--policy",
-        default=str(DANCE_SIM_DIR / "assets/policies/mimic/dance1_subject2/exported/policy.onnx"),
+        default=str(
+            DANCE_SIM_DIR
+            / "assets/policies/mimic/dance1_subject2_16s_faststart/exported/policy.onnx"
+        ),
     )
     parser.add_argument("--num-envs", type=int, default=1)
     parser.add_argument("--device", default=None)
@@ -260,6 +257,8 @@ def main() -> None:
                 actions = torch.clamp(actions, -self.clip_actions, self.clip_actions)
 
             raw = self.env
+            if actions.is_cuda:
+                torch.cuda.synchronize(actions.device)
             raw.action_manager.process_action(actions.to(raw.device))
             for _ in range(raw.cfg.decimation):
                 raw._sim_step_counter += 1
@@ -401,6 +400,8 @@ def main() -> None:
         def __call__(self, obs) -> torch.Tensor:
             actor = obs["actor"] if isinstance(obs, (dict, TensorDict)) else obs
             actor = actor.detach()
+            if actor.is_cuda:
+                torch.cuda.synchronize(actor.device)
             if actor.shape[0] != 1:
                 actions = [self(actor[i : i + 1]).clone() for i in range(actor.shape[0])]
                 return torch.cat(actions, dim=0)

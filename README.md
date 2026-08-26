@@ -13,15 +13,37 @@ The repository combines:
 
 ## Current conclusion
 
-The GPU MJWarp baseline is **not qualified**: repeated single-world GPU
-processes can still produce occasional healthy falls around the most dynamic
-part of the motion. The CPU MJWarp + CPU ONNX reference passed 100 independent
-exact-deploy processes with 100 successful dances and zero falls. This matches
-the real G1 operator's report of approximately 100 sequential runs without a
-fall.
+The one-robot deploy reference now uses native MuJoCo with the Unitree
+`scene_g1.xml`, the deploy ONNX policy and the C++ deploy observation/control
+semantics. It passed 100 fresh processes with `100/100` completed dances and
+zero floor-level falls. All physical extrema were identical: minimum pelvis
+height `0.492385 m`, minimum torso height `0.784822 m`, and final root height
+`0.758102 m`. Headless execution is approximately `5x` real time on this
+laptop, so the native viewer can display the dance smoothly without using GPU
+physics.
+
+GPU MJWarp remains **not qualified for deterministic single-world evidence**.
+Paired traces show GPU runs with the same seed and inputs diverging around
+control step 48--50, followed by different contact/constraint sets. Newton and
+CG both reproduce the issue; PGS is unsupported by MJWarp 3.5.0. GPU MJWarp
+remains appropriate for training and explicitly labeled robustness/stress
+batches, not for the healthy deploy baseline.
 
 Read [docs/mjwarp_healthy_fall_investigation.md](docs/mjwarp_healthy_fall_investigation.md)
 before interpreting any survival result.
+
+Run the deterministic deploy simulator:
+
+```bash
+./dance_sim/run_native_mujoco_deploy.sh --viewer
+```
+
+Run a headless right-knee torque-capability checkpoint:
+
+```bash
+./dance_sim/run_native_mujoco_deploy.sh \
+  --joint-torque-scale right_knee_joint=0.5
+```
 
 The deploy clip is a numerically equivalent recut of the full motion interval:
 
@@ -62,7 +84,7 @@ The local bundle already uses `dance_sim/.venv`. For a clean machine, install up
 git -C dance_sim/external/unitree_rl_mjlab apply ../../../patches/unitree_rl_mjlab_motion_start.patch
 ```
 
-## Valid healthy smoke test
+## Legacy MJWarp smoke test
 
 ```bash
 cd mvp_mujoco
