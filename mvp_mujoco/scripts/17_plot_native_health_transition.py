@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from pathlib import Path
 
@@ -21,6 +22,38 @@ def _wilson_interval(falls: np.ndarray, trials: np.ndarray, z: float = 1.9599639
     centre = (proportion + z**2 / (2.0 * trials)) / denominator
     radius = z * np.sqrt(proportion * (1.0 - proportion) / trials + z**2 / (4.0 * trials**2)) / denominator
     return np.clip(centre - radius, 0.0, 1.0), np.clip(centre + radius, 0.0, 1.0)
+
+
+def _switch_report(input_dir: Path, checkpoints: list[int]) -> dict[str, object]:
+    statuses: dict[int, list[int]] = {}
+    for checkpoint in checkpoints:
+        path = input_dir / f"checkpoint_{checkpoint}" / "trials.csv"
+        if not path.exists():
+            return {"available": False}
+        with path.open(newline="") as handle:
+            rows = sorted(csv.DictReader(handle), key=lambda row: int(row["sample"]))
+        statuses[checkpoint] = [int(row["failed"]) for row in rows]
+    transitions: list[dict[str, int]] = []
+    completion_to_fall = 0
+    fall_to_completion = 0
+    for left, right in zip(checkpoints, checkpoints[1:]):
+        before = np.asarray(statuses[left], dtype=np.int8)
+        after = np.asarray(statuses[right], dtype=np.int8)
+        c_to_f = int(np.sum((before == 0) & (after == 1)))
+        f_to_c = int(np.sum((before == 1) & (after == 0)))
+        completion_to_fall += c_to_f
+        fall_to_completion += f_to_c
+        transitions.append({"from": left, "to": right, "completion_to_fall": c_to_f, "fall_to_completion": f_to_c})
+    stacked = np.asarray([statuses[checkpoint] for checkpoint in checkpoints], dtype=np.int8)
+    return {
+        "available": True,
+        "ever_failed": int(np.sum(np.any(stacked == 1, axis=0))),
+        "failed_at_final_checkpoint": int(np.sum(stacked[-1] == 1)),
+        "completion_to_fall_switches": completion_to_fall,
+        "fall_to_completion_switches": fall_to_completion,
+        "adjacent_checkpoint_switches": transitions,
+        "interpretation": "Individual simulated outcomes are not strictly monotone under closed-loop nonlinear dynamics; do not treat first failure as irreversible damage onset.",
+    }
 
 
 def main() -> None:
@@ -81,8 +114,16 @@ def main() -> None:
     pdf = out_dir / "native_health_transition.pdf"
     figure.savefig(png, dpi=220)
     figure.savefig(pdf)
+    report = {
+        "steepest_observed_interval": [int(dances[steepest]), int(dances[steepest + 1])] if len(jumps) else None,
+        "steepest_observed_slope_falls_per_1000_dances": float(jumps[steepest]) if len(jumps) else None,
+        "switch_analysis": _switch_report(args.input.parent, [int(value) for value in dances]),
+    }
+    report_path = out_dir / "native_health_transition_report.json"
+    report_path.write_text(json.dumps(report, indent=2))
     print(f"[PLOT] {png}")
     print(f"[PLOT] {pdf}")
+    print(f"[PLOT] {report_path}")
     if len(jumps):
         print(f"[TRANSITION] steepest_interval={dances[steepest] / 1000:.0f}k-{dances[steepest + 1] / 1000:.0f}k slope={jumps[steepest]:.6f}_falls_per_1000_dances")
 

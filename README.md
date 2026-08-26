@@ -78,6 +78,19 @@ so every video corresponds exactly to the recorded trial metrics. Videos are
 generated under the ensemble output directory and excluded from Git because
 the high-quality evidence set is large.
 
+Run the dense `500k`--`1M` transition sweep and create its plot:
+
+```bash
+cd mvp_mujoco
+./run_native_health_transition.sh
+MPLBACKEND=Agg ../dance_sim/.venv/bin/python scripts/17_plot_native_health_transition.py \
+  --input outputs/rb_y_16s/native_health_transition_500k_1m/summary.json
+```
+
+The dense sweep uses common random numbers: virtual robot `i` keeps the same
+wear-rate multiplier at every checkpoint, so the plotted change is due to the
+wear coordinate rather than resampling the parameter ensemble.
+
 The deploy clip is a numerically equivalent recut of the full motion interval:
 
 ```text

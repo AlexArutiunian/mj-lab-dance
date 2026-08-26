@@ -170,3 +170,38 @@ The full p05/p50/p95 metrics and every trace are written under
 claimed qualitative conclusion: under this assumed damage law, increasing wear
 first increases trajectory tracking error and only later produces floor-level
 falls. It does **not** establish when a physical G1 reaches those checkpoints.
+
+## Dense transition sweep: 500k--1M
+
+A denser native-MuJoCo conditional sweep used 100 virtual robots at every
+`50k`-dance checkpoint. It reused each virtual robot's same wear-rate
+multiplier across all checkpoints (`common_random_numbers=true`), keeping the
+initial state, policy, motion and physics exact. This avoids mistaking a new
+parameter sample for a change due to wear.
+
+| Completed dances | Floor falls / 100 |
+| ---: | ---: |
+| 500k | 1 |
+| 550k | 3 |
+| 600k | 3 |
+| 650k | 12 |
+| 700k | 18 |
+| 750k | 26 |
+| 800k | 37 |
+| 850k | 47 |
+| 900k | 59 |
+| 950k | 64 |
+| 1M | 71 |
+
+The aggregate conditional fall curve is a broad transition rather than a
+single discontinuity. Its 50% crossing lies between `850k` and `900k`; the
+steepest observed aggregate increment is `+12/100` over that interval. PNG,
+PDF, Wilson intervals and all source traces are in
+`mvp_mujoco/outputs/rb_y_16s/native_health_transition_500k_1m/`.
+
+Individual closed-loop outcomes are not strictly monotone: there were 82
+adjacent `completed -> fall` switches and 12 `fall -> completed` switches.
+Thus an individual first fall is not an irreversible-damage threshold in this
+model. The appropriate reported result is the aggregate conditional fall
+fraction with its uncertainty interval, not a claimed physical bifurcation or
+real-G1 lifetime limit.
