@@ -13,7 +13,14 @@ The repository combines:
 
 ## Current conclusion
 
-The single-world healthy baseline is stable. Large MJWarp `nworld` runs are currently not scientifically valid: identical healthy worlds diverge numerically and some fall around the most dynamic part of the motion. Therefore the previously observed healthy failure counts such as `32/256` are simulator batch artifacts, not policy failures and not wear effects.
+The healthy MJWarp baseline is **not yet qualified**. Large `nworld` runs are
+invalid, and repeated single-world processes can still produce occasional
+healthy falls around the most dynamic part of the motion. The real G1 operator
+reports 100 sequential runs of the same policy and 16.24 s segment without a
+fall; this observation has not yet been reproduced by the simulator.
+
+Read [docs/mjwarp_healthy_fall_investigation.md](docs/mjwarp_healthy_fall_investigation.md)
+before interpreting any survival result.
 
 The deploy clip is a numerically equivalent recut of the full motion interval:
 

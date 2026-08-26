@@ -40,6 +40,10 @@ def _parse_devices(value: str) -> list[str]:
     devices = [item.strip() for item in value.split(",") if item.strip()]
     if not devices:
         raise ValueError("At least one device is required")
+    if len(set(devices)) != len(devices):
+        raise ValueError(
+            "Each worker must use a distinct physical device; duplicate device entries contaminate MJWarp results"
+        )
     return devices
 
 

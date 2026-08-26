@@ -14,6 +14,10 @@ SPEC.loader.exec_module(MODULE)
 
 
 class IndependentTrialTests(unittest.TestCase):
+    def test_duplicate_devices_are_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "distinct physical device"):
+            MODULE._parse_devices("cuda:0,cuda:0")
+
     def test_wilson_interval_contains_observed_fraction(self) -> None:
         low, high = MODULE.wilson_interval(8, 10)
         self.assertLess(low, 0.8)

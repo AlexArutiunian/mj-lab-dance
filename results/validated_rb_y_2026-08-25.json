@@ -1,5 +1,5 @@
 {
-  "status": "VALIDATED_SINGLE_WORLD_CONDITIONAL",
+  "status": "UNRESOLVED_HEALTHY_SIMULATOR_BASELINE",
   "date": "2026-08-25",
   "simulator": {
     "mujoco": "3.5.0",
@@ -56,8 +56,8 @@
     "seeds": [1, 2, 3, 4, 5],
     "successful": 5,
     "failed": 0,
-    "status": "VALID",
-    "interpretation": "Determinism and exact-deploy baseline gate; repeated exact seeds are not Monte Carlo lifetime samples."
+    "status": "SUPERSEDED_INSUFFICIENT_SAMPLE",
+    "interpretation": "The 5/5 smoke result was superseded by larger sweeps containing healthy simulator falls."
   },
   "exact_start_dose_response": [
     {"right_knee_target_scale": 0.8, "failed": false},
@@ -69,5 +69,5 @@
     "reason": "Some combined uncalibrated MJLab reset perturbations caused healthy-control falls around 8-10 seconds; isolated XY, yaw and joint channels each completed for seed 1.",
     "wear_trials_with_failed_healthy_controls_excluded": true
   },
-  "interpretation": "Validated deterministic closed-loop sensitivity only. Repetition-to-torque-scale mapping is an uncalibrated assumption, and no physical one-million-dance lifetime or survival probability is claimed."
+  "interpretation": "Healthy MJWarp playback remains unqualified. Conditional worn outcomes and repetition-to-torque-scale mapping must not be interpreted as physical lifetime or survival probability."
 }

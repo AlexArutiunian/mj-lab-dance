@@ -3,10 +3,18 @@ from __future__ import annotations
 import numpy as np
 import unittest
 
-from mvp_mujoco.wearbench.mjlab_mapping import resolve_actuator_ids
+from mvp_mujoco.wearbench.mjlab_mapping import degraded_force_limited, resolve_actuator_ids
 
 
 class MjlabMappingTests(unittest.TestCase):
+    def test_degraded_force_limited_preserves_healthy_actuators(self) -> None:
+        nominal = np.asarray([0, 1, 0, 1], dtype=np.int32)
+        scales = np.asarray([1.0, 1.0, 0.8, 0.3])
+
+        resolved = degraded_force_limited(nominal, scales)
+
+        np.testing.assert_array_equal(resolved, np.asarray([0, 1, 1, 1]))
+
     def test_resolve_actuator_ids_preserves_requested_joint_order(self) -> None:
         actuator_trnid = np.asarray([[30, 0], [10, 0], [20, 0]], dtype=np.int32)
 

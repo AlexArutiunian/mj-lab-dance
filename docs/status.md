@@ -42,14 +42,17 @@ some combined offsets, so it is a nonlinear policy robustness boundary rather
 than one broken reset field. Primary wear runs now use the explicit
 `deploy_exact` protocol; combined perturbations are labeled `stress_jitter`.
 
-The `deploy_exact` regression gate then completed in five independent MJWarp
-processes with seeds 1--5: healthy `5/5`, floor-level falls `0/5`, all trials
-valid. This establishes the primary baseline path; it is a determinism check,
-not a five-sample lifetime distribution.
+An early `deploy_exact` gate completed five independent MJWarp processes with
+healthy `5/5`. This was only a smoke test and was not sufficient: subsequent
+larger gates found healthy failures. The active incident and attempted fixes are
+documented in `docs/mjwarp_healthy_fall_investigation.md`.
 
 ## Current decision
 
-Use `num_envs=1` as the reference simulator path. Parallelize independent processes across GPUs for throughput. Any future `nworld > 1` optimization must first pass an identical-world healthy-control test and a paired comparison against the single-world reference.
+No simulator path is currently qualified for survival claims. Continue
+debugging with `num_envs=1`; parallel jobs require distinct physical GPUs.
+Any future reference path must pass a 100-process healthy-control gate and a
+native-MuJoCo comparison.
 
 ## Next work
 

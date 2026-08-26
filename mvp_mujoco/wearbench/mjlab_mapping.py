@@ -29,6 +29,16 @@ def resolve_actuator_ids(actuator_trnid: np.ndarray, joint_ids: np.ndarray) -> n
     return np.asarray(result, dtype=np.int64)
 
 
+def degraded_force_limited(nominal: np.ndarray, scales: np.ndarray) -> np.ndarray:
+    """Enable force limiting only where degradation reduces available torque."""
+    nominal = np.asarray(nominal).copy()
+    scales = np.asarray(scales, dtype=np.float64)
+    if nominal.shape != scales.shape:
+        raise ValueError(f"Force-limited flags {nominal.shape} do not match scales {scales.shape}")
+    nominal[scales < 1.0 - 1.0e-12] = 1
+    return nominal
+
+
 def build_mjlab_joint_actuator_map(raw_env, entity_name: str = "robot") -> MjlabJointActuatorMap:
     robot = raw_env.scene[entity_name]
     model = raw_env.sim.mj_model
@@ -59,18 +69,22 @@ def apply_joint_ordered_actuator_scales(
     scales = np.asarray(scales, dtype=np.float64)
     if scales.shape != (len(mapping.joint_names),):
         raise ValueError(f"Expected {len(mapping.joint_names)} joint scales, got {scales.shape}")
+    if np.all(scales >= 1.0 - 1.0e-12):
+        return mapping
 
     sim = raw_env.sim
     ids = mapping.actuator_ids
     nominal_all = sim.mj_model.actuator_forcerange if nominal_forcerange is None else np.asarray(nominal_forcerange)
     nominal = nominal_all[ids].copy()
     scaled = nominal * scales[:, None]
+    limited = degraded_force_limited(sim.mj_model.actuator_forcelimited[ids], scales)
     sim.mj_model.actuator_forcerange[ids] = scaled
-    sim.mj_model.actuator_forcelimited[ids] = 1
+    sim.mj_model.actuator_forcelimited[ids] = limited
 
     device = torch.device(sim.device)
     ids_t = torch.as_tensor(ids, dtype=torch.long, device=device)
     scaled_t = torch.as_tensor(scaled, dtype=sim.model.actuator_forcerange.dtype, device=device)
+    limited_t = torch.as_tensor(limited, dtype=sim.model.actuator_forcelimited.dtype, device=device)
     force_range = sim.model.actuator_forcerange
     force_limited = sim.model.actuator_forcelimited
     if force_range.ndim == 3:
@@ -78,8 +92,8 @@ def apply_joint_ordered_actuator_scales(
     else:
         force_range[ids_t] = scaled_t
     if force_limited.ndim == 2:
-        force_limited[:, ids_t] = 1
+        force_limited[:, ids_t] = limited_t.unsqueeze(0)
     else:
-        force_limited[ids_t] = 1
+        force_limited[ids_t] = limited_t
     sim.create_graph()
     return mapping

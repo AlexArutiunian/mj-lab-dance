@@ -25,3 +25,7 @@
 - Isolated reset channels: small XY-only, yaw-only and joint-only offsets each completed for seed 1; failures require some combined offsets and represent a nonlinear robustness boundary.
 - Added explicit `deploy_exact` versus `stress_jitter` result classification.
 - Passed a five-process `deploy_exact` healthy regression gate on seeds 1--5 with 5/5 successful and no floor-level falls.
+- Superseded the 5/5 smoke conclusion after larger exact-start sweeps produced intermittent healthy floor-level falls around 8--11 s.
+- Fixed healthy scale 1.0 mutating `actuator_forcelimited`; healthy runs now leave the model and CUDA graph untouched.
+- Restored the original fixed-batch ONNX/direct CUDA binding for single-world runs and rejected duplicate workers on one physical GPU.
+- Added explicit CUDA synchronization at MJWarp-observation/ORT-input and ORT-output/MJWarp-action boundaries. Targeted failing seeds improved, but a larger gate still failed; the simulator incident remains unresolved.

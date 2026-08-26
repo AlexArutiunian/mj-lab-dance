@@ -77,6 +77,10 @@ class FastPlayVecEnv:
         if self.clip_actions is not None:
             actions = torch.clamp(actions, -self.clip_actions, self.clip_actions)
         raw = self.env
+        if actions.is_cuda:
+            # ONNX Runtime and MJWarp may use different CUDA streams. Physics
+            # must not consume an output buffer before inference has completed.
+            torch.cuda.synchronize(actions.device)
         raw.action_manager.process_action(actions.to(raw.device))
         for _ in range(raw.cfg.decimation):
             raw._sim_step_counter += 1
@@ -100,22 +104,38 @@ class FastPlayVecEnv:
 
 
 class BatchedOnnxPolicy:
-    def __init__(self, policy_path: Path, dynamic_policy_path: Path) -> None:
+    def __init__(self, policy_path: Path, dynamic_policy_path: Path, batch_size: int) -> None:
         import onnxruntime as ort
 
-        patched = _patch_onnx_dynamic_batch(policy_path, dynamic_policy_path)
+        self.batch_size = int(batch_size)
+        selected_policy = (
+            policy_path if self.batch_size == 1 else _patch_onnx_dynamic_batch(policy_path, dynamic_policy_path)
+        )
         providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if "CUDAExecutionProvider" in ort.get_available_providers() else ["CPUExecutionProvider"]
-        session_options = ort.SessionOptions()
-        session_options.log_severity_level = 3
-        self.session = ort.InferenceSession(str(patched), sess_options=session_options, providers=providers)
+        if self.batch_size == 1:
+            self.session = ort.InferenceSession(str(selected_policy), providers=providers)
+        else:
+            session_options = ort.SessionOptions()
+            session_options.log_severity_level = 3
+            self.session = ort.InferenceSession(
+                str(selected_policy), sess_options=session_options, providers=providers
+            )
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
         self.cuda_enabled = "CUDAExecutionProvider" in self.session.get_providers()
         self.output_tensor: torch.Tensor | None = None
-        print(f"[BATCH] ONNX providers: {self.session.get_providers()}", flush=True)
+        self.execution_path = "fixed_batch_direct_cuda" if self.batch_size == 1 else "dynamic_batch"
+        print(
+            f"[BATCH] ONNX providers: {self.session.get_providers()} path={self.execution_path}",
+            flush=True,
+        )
 
     def __call__(self, obs: TensorDict) -> torch.Tensor:
         actor = obs["actor"].detach()
+        if actor.is_cuda:
+            # MJWarp produces observations on CUDA streams not owned by ORT.
+            # Complete those writes before ORT reads the input buffer.
+            torch.cuda.synchronize(actor.device)
         if actor.dtype != torch.float32:
             actor = actor.float()
         actor = actor.contiguous()
@@ -124,6 +144,19 @@ class BatchedOnnxPolicy:
             device_id = actor.device.index if actor.device.index is not None else 0
             binding = self.session.io_binding()
             binding.bind_input(self.input_name, "cuda", device_id, np.float32, tuple(actor.shape), actor.data_ptr())
+            if self.batch_size == 1:
+                if self.output_tensor is None or self.output_tensor.device != actor.device:
+                    self.output_tensor = torch.empty((1, 29), device=actor.device, dtype=torch.float32)
+                binding.bind_output(
+                    self.output_name,
+                    "cuda",
+                    device_id,
+                    np.float32,
+                    tuple(self.output_tensor.shape),
+                    self.output_tensor.data_ptr(),
+                )
+                self.session.run_with_iobinding(binding)
+                return self.output_tensor
             binding.bind_output(self.output_name, "cuda", device_id)
             self.session.run_with_iobinding(binding)
             actions = binding.copy_outputs_to_cpu()[0]
@@ -238,7 +271,9 @@ def main() -> None:
         stale.unlink(missing_ok=True)
 
     agent_cfg = load_rl_cfg(args.task)
-    policy = BatchedOnnxPolicy(args.policy.resolve(), args.out_dir / "policy_dynamic_batch.onnx")
+    policy = BatchedOnnxPolicy(
+        args.policy.resolve(), args.out_dir / "policy_dynamic_batch.onnx", batch_size=int(args.num_envs)
+    )
     checkpoints = _parse_int_list(args.checkpoints)
     if 0 not in checkpoints and not args.allow_invalid_baseline:
         raise ValueError("Validated runs must include checkpoint 0 as the healthy control.")
@@ -465,6 +500,7 @@ def main() -> None:
         "checkpoints": checkpoints,
         "duration_s": duration,
         "device": args.device,
+        "policy_execution_path": policy.execution_path,
         "motion_start_time_s": float(args.motion_start_time_s),
         "reset_protocol": reset_protocol,
         "alpha": alpha,
