@@ -38,6 +38,25 @@ Run the deterministic deploy simulator:
 ./dance_sim/run_native_mujoco_deploy.sh --viewer
 ```
 
+Run the bundled Unitree velocity-walking policy through its own deploy-matched
+native-MuJoCo observation path:
+
+```bash
+./dance_sim/run_native_mujoco_velocity.sh --vx 0.4 --duration 30 --viewer
+```
+
+The velocity policy has a distinct 98-element observation interface and must
+not be evaluated through the dance/mimic wrapper. Full dance evaluation uses
+the complete bundled `dance1_subject2` assets:
+
+```bash
+./dance_sim/run_native_mujoco_deploy.sh \
+  --policy dance_sim/assets/policies/mimic/dance1_subject2/exported/policy.onnx \
+  --motion dance_sim/assets/policies/mimic/dance1_subject2/params/dance1_subject2.npz \
+  --deploy dance_sim/assets/policies/mimic/dance1_subject2/params/deploy.yaml \
+  --duration 131.48
+```
+
 Run a headless right-knee torque-capability checkpoint:
 
 ```bash
