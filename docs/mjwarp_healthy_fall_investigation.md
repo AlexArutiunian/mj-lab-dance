@@ -1,6 +1,6 @@
 # MJWarp healthy fall investigation
 
-Updated: 2026-08-26. Status: **UNRESOLVED / BLOCKS SURVIVAL CLAIMS**.
+Updated: 2026-08-26. Status: **CPU REFERENCE QUALIFIED; GPU PATH UNRESOLVED**.
 
 ## Problem statement
 
@@ -18,8 +18,28 @@ short-clip time 8--11 s. The primary detector requires both
 `pelvis_z < 0.35 m` and `torso_z < 0.30 m` continuously for 0.50 s. These are
 full-body floor contacts, not temporary dance crouches or angle excursions.
 
-Consequently, simulator survival/failure rates and worn-vs-healthy comparisons
-are blocked until the healthy path passes qualification.
+Consequently, GPU simulator survival/failure rates remain blocked. A qualified
+CPU reference is now available for subsequent simulator experiments.
+
+## Qualified resolution
+
+MJWarp physics on `device=cpu` together with ONNX Runtime
+`CPUExecutionProvider` completed 100 fresh processes, seeds 1--100:
+
+```text
+valid trials:       100/100
+successful dances: 100/100
+floor-level falls: 0/100
+minimum pelvis z:  0.4101710319519043 m in every process
+minimum torso z:   0.7023436427116394 m in every process
+wall time:         2070.267 s with eight CPU workers
+summary SHA-256:   03e166095b0c5cf97e90466c5178d072daea267ba502b17c0d4e5c506f16e414
+```
+
+The identical extrema across all 100 processes demonstrate deterministic CPU
+playback. The operational fix is to use CPU physics and CPU ONNX as the
+scientific reference. It does not repair GPU MJWarp internals; GPU acceleration
+remains disabled for evidence until trajectory equivalence is established.
 
 ## Immutable provenance
 
@@ -103,8 +123,8 @@ but did not make a larger sweep failure-free.
 - original fixed-batch ONNX with direct CUDA I/O binding;
 - CUDA synchronization on both ORT/MJWarp boundaries.
 
-These changes remove known confounders and must remain, but no completed
-100-process gate has yet demonstrated zero healthy simulator falls.
+These changes remove known confounders and must remain. They were insufficient
+to qualify GPU execution but are retained in the qualified CPU reference.
 
 ## Current hypotheses
 
@@ -128,12 +148,13 @@ These changes remove known confounders and must remain, but no completed
    treat MJWarp as acceleration-only after equivalence qualification.
 4. Compare simulator state against real G1 telemetry from the reported 100
    successful runs, especially around clip time 8--11 s.
-5. Only after a healthy 100-run qualification gate passes, rerun conditional
-   wear checkpoints and survival experiments.
+5. Rerun conditional wear checkpoints on the qualified CPU reference before
+   interpreting any worn result.
 
 ## Claim boundary
 
 Do not claim that the physical robot has a baseline fall probability, that
 scale 0.3 has a validated survival rate, or that one million dances predicts a
-physical lifetime. At present this repository demonstrates an unresolved
-simulator qualification issue and an uncalibrated conditional wear model.
+physical lifetime. The CPU healthy reference is qualified, but worn CPU results
+and the wear law still require rerunning/calibration. GPU MJWarp remains an open
+simulator issue.

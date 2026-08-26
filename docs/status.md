@@ -47,12 +47,18 @@ healthy `5/5`. This was only a smoke test and was not sufficient: subsequent
 larger gates found healthy failures. The active incident and attempted fixes are
 documented in `docs/mjwarp_healthy_fall_investigation.md`.
 
-## Current decision
+## Qualified healthy reference
 
-No simulator path is currently qualified for survival claims. Continue
-debugging with `num_envs=1`; parallel jobs require distinct physical GPUs.
-Any future reference path must pass a 100-process healthy-control gate and a
-native-MuJoCo comparison.
+The CPU MJWarp physics + ONNX `CPUExecutionProvider` path passed 100 fresh
+processes with seeds 1--100: `100/100` successful, `0` floor-level falls, all
+trials valid. Every run produced identical extrema, including minimum pelvis
+height `0.410171 m` and minimum torso height `0.702344 m`. Wall time with eight
+CPU workers was 2070.27 s. The summary SHA-256 is
+`03e166095b0c5cf97e90466c5178d072daea267ba502b17c0d4e5c506f16e414`.
+
+Use this CPU path as the healthy scientific reference. GPU MJWarp remains
+unqualified and may only be used diagnostically until it matches CPU
+trajectories and passes its own 100-process gate.
 
 ## Next work
 

@@ -1,5 +1,5 @@
 {
-  "status": "UNRESOLVED_HEALTHY_SIMULATOR_BASELINE",
+  "status": "QUALIFIED_CPU_HEALTHY_REFERENCE_GPU_UNRESOLVED",
   "date": "2026-08-25",
   "simulator": {
     "mujoco": "3.5.0",
@@ -59,6 +59,19 @@
     "status": "SUPERSEDED_INSUFFICIENT_SAMPLE",
     "interpretation": "The 5/5 smoke result was superseded by larger sweeps containing healthy simulator falls."
   },
+  "cpu_reference_gate": {
+    "physics_device": "cpu",
+    "onnx_provider": "CPUExecutionProvider",
+    "independent_processes": 100,
+    "seeds": "1..100",
+    "successful": 100,
+    "failed": 0,
+    "valid": 100,
+    "min_pelvis_z_m": 0.4101710319519043,
+    "min_torso_z_m": 0.7023436427116394,
+    "wall_time_s": 2070.2671194120003,
+    "summary_sha256": "03e166095b0c5cf97e90466c5178d072daea267ba502b17c0d4e5c506f16e414"
+  },
   "exact_start_dose_response": [
     {"right_knee_target_scale": 0.8, "failed": false},
     {"right_knee_target_scale": 0.5, "failed": false},
@@ -69,5 +82,5 @@
     "reason": "Some combined uncalibrated MJLab reset perturbations caused healthy-control falls around 8-10 seconds; isolated XY, yaw and joint channels each completed for seed 1.",
     "wear_trials_with_failed_healthy_controls_excluded": true
   },
-  "interpretation": "Healthy MJWarp playback remains unqualified. Conditional worn outcomes and repetition-to-torque-scale mapping must not be interpreted as physical lifetime or survival probability."
+  "interpretation": "CPU healthy playback is qualified by a deterministic 100-process gate. GPU playback remains unqualified. Conditional worn outcomes must be rerun on CPU, and repetition-to-torque-scale mapping remains an uncalibrated model assumption."
 }

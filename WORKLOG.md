@@ -29,3 +29,5 @@
 - Fixed healthy scale 1.0 mutating `actuator_forcelimited`; healthy runs now leave the model and CUDA graph untouched.
 - Restored the original fixed-batch ONNX/direct CUDA binding for single-world runs and rejected duplicate workers on one physical GPU.
 - Added explicit CUDA synchronization at MJWarp-observation/ORT-input and ORT-output/MJWarp-action boundaries. Targeted failing seeds improved, but a larger gate still failed; the simulator incident remains unresolved.
+- Qualified CPU MJWarp physics with ONNX `CPUExecutionProvider`: 100 fresh processes on seeds 1--100 completed 100/100 with zero falls and identical trajectory extrema.
+- Set CPU as the default independent-trial reference and labeled GPU evidence unqualified pending CPU trajectory equivalence.

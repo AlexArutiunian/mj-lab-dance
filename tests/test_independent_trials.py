@@ -18,6 +18,9 @@ class IndependentTrialTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "distinct physical device"):
             MODULE._parse_devices("cuda:0,cuda:0")
 
+    def test_cpu_process_workers_may_share_cpu_backend(self) -> None:
+        self.assertEqual(MODULE._parse_devices("cpu,cpu"), ["cpu", "cpu"])
+
     def test_wilson_interval_contains_observed_fraction(self) -> None:
         low, high = MODULE.wilson_interval(8, 10)
         self.assertLess(low, 0.8)

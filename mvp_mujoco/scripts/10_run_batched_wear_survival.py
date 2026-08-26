@@ -104,14 +104,22 @@ class FastPlayVecEnv:
 
 
 class BatchedOnnxPolicy:
-    def __init__(self, policy_path: Path, dynamic_policy_path: Path, batch_size: int) -> None:
+    def __init__(
+        self, policy_path: Path, dynamic_policy_path: Path, batch_size: int, execution_device: str
+    ) -> None:
         import onnxruntime as ort
 
         self.batch_size = int(batch_size)
         selected_policy = (
             policy_path if self.batch_size == 1 else _patch_onnx_dynamic_batch(policy_path, dynamic_policy_path)
         )
-        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if "CUDAExecutionProvider" in ort.get_available_providers() else ["CPUExecutionProvider"]
+        providers = (
+            ["CPUExecutionProvider"]
+            if execution_device == "cpu"
+            else ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            if "CUDAExecutionProvider" in ort.get_available_providers()
+            else ["CPUExecutionProvider"]
+        )
         if self.batch_size == 1:
             self.session = ort.InferenceSession(str(selected_policy), providers=providers)
         else:
@@ -124,7 +132,13 @@ class BatchedOnnxPolicy:
         self.output_name = self.session.get_outputs()[0].name
         self.cuda_enabled = "CUDAExecutionProvider" in self.session.get_providers()
         self.output_tensor: torch.Tensor | None = None
-        self.execution_path = "fixed_batch_direct_cuda" if self.batch_size == 1 else "dynamic_batch"
+        self.execution_path = (
+            "fixed_batch_cpu"
+            if self.batch_size == 1 and execution_device == "cpu"
+            else "fixed_batch_direct_cuda"
+            if self.batch_size == 1
+            else "dynamic_batch"
+        )
         print(
             f"[BATCH] ONNX providers: {self.session.get_providers()} path={self.execution_path}",
             flush=True,
@@ -272,7 +286,10 @@ def main() -> None:
 
     agent_cfg = load_rl_cfg(args.task)
     policy = BatchedOnnxPolicy(
-        args.policy.resolve(), args.out_dir / "policy_dynamic_batch.onnx", batch_size=int(args.num_envs)
+        args.policy.resolve(),
+        args.out_dir / "policy_dynamic_batch.onnx",
+        batch_size=int(args.num_envs),
+        execution_device=args.device,
     )
     checkpoints = _parse_int_list(args.checkpoints)
     if 0 not in checkpoints and not args.allow_invalid_baseline:
@@ -501,6 +518,7 @@ def main() -> None:
         "duration_s": duration,
         "device": args.device,
         "policy_execution_path": policy.execution_path,
+        "onnx_providers": policy.session.get_providers(),
         "motion_start_time_s": float(args.motion_start_time_s),
         "reset_protocol": reset_protocol,
         "alpha": alpha,

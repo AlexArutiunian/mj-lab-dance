@@ -40,7 +40,8 @@ def _parse_devices(value: str) -> list[str]:
     devices = [item.strip() for item in value.split(",") if item.strip()]
     if not devices:
         raise ValueError("At least one device is required")
-    if len(set(devices)) != len(devices):
+    duplicated_gpu = any(device != "cpu" and devices.count(device) > 1 for device in set(devices))
+    if duplicated_gpu:
         raise ValueError(
             "Each worker must use a distinct physical device; duplicate device entries contaminate MJWarp results"
         )
@@ -113,7 +114,11 @@ def _run_trial(args, trial: int, device: str) -> dict[str, object]:
 def main() -> None:
     p = argparse.ArgumentParser(description="Independent single-world paired healthy/worn trials.")
     p.add_argument("--trials", type=int, default=10)
-    p.add_argument("--devices", default="cuda:0", help="Comma-separated devices; one worker process per device.")
+    p.add_argument(
+        "--devices",
+        default="cpu",
+        help="Comma-separated devices; CPU is the qualified reference, while GPU is diagnostic only.",
+    )
     p.add_argument("--seed-start", type=int, default=1)
     p.add_argument("--checkpoints", default="100000,500000,1000000")
     p.add_argument("--target-repetition", type=int, default=1_000_000)
@@ -144,6 +149,7 @@ def main() -> None:
     )
 
     devices = _parse_devices(args.devices)
+    all_cpu = all(device == "cpu" for device in devices)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     trial_results: list[dict[str, object]] = []
@@ -215,7 +221,11 @@ def main() -> None:
         "mode": "independent_single_world_paired_trials",
         "status": "VALID" if all(bool(x["valid"]) for x in trial_results) else "INVALID_TRIALS_PRESENT",
         "evidence_class": (
-            "EXACT_DEPLOY_REGRESSION" if reset_protocol == "deploy_exact" else "ROBUSTNESS_STRESS_TEST"
+            "ROBUSTNESS_STRESS_TEST"
+            if reset_protocol != "deploy_exact"
+            else "EXACT_DEPLOY_CPU_REFERENCE"
+            if all_cpu
+            else "EXACT_DEPLOY_GPU_UNQUALIFIED"
         ),
         "reset_protocol": reset_protocol,
         "model_status": "MODEL_ASSUMPTION_ONLY",

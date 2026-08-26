@@ -13,11 +13,12 @@ The repository combines:
 
 ## Current conclusion
 
-The healthy MJWarp baseline is **not yet qualified**. Large `nworld` runs are
-invalid, and repeated single-world processes can still produce occasional
-healthy falls around the most dynamic part of the motion. The real G1 operator
-reports 100 sequential runs of the same policy and 16.24 s segment without a
-fall; this observation has not yet been reproduced by the simulator.
+The GPU MJWarp baseline is **not qualified**: repeated single-world GPU
+processes can still produce occasional healthy falls around the most dynamic
+part of the motion. The CPU MJWarp + CPU ONNX reference passed 100 independent
+exact-deploy processes with 100 successful dances and zero falls. This matches
+the real G1 operator's report of approximately 100 sequential runs without a
+fall.
 
 Read [docs/mjwarp_healthy_fall_investigation.md](docs/mjwarp_healthy_fall_investigation.md)
 before interpreting any survival result.
@@ -85,11 +86,14 @@ Use independent single-world processes for paired robustness experiments:
 cd mvp_mujoco
 ./run_independent_trials.sh \
   --trials 10 \
-  --checkpoints 100000,500000,1000000 \
-  --devices cuda:0
+  --checkpoints 0 \
+  --devices cpu
 ```
 
-On a host with multiple GPUs, pass for example `--devices cuda:0,cuda:1`. Every trial runs its own healthy control before worn checkpoints with the same seed. A failed healthy control invalidates the pair. Survival statistics require a reset/parameter distribution calibrated from real deployment telemetry; arbitrary jitter is only a stress test. Do not replace this path with a large `--num-envs` value until MJWarp batch equivalence is demonstrated.
+Multiple CPU worker processes may be requested with `--devices cpu,cpu,...`.
+GPU execution remains diagnostic until it passes equivalence against the CPU
+reference. Every trial runs its own healthy control before worn checkpoints
+with the same seed. A failed healthy control invalidates the pair.
 
 ## Scientific scope
 
