@@ -116,11 +116,16 @@ def _run_one(
 def _scales_for_sample(profile: dict[str, object], completed_dances: int, wear_rate: float) -> tuple[dict[str, float], float, float, str]:
     floor = 0.10
     exponent = 1.5
-    alpha = float(profile["alpha_accelerated"])
     rows = profile["joints"]
     values: list[tuple[str, float, float]] = []
     for row in rows:
-        damage = max(0.0, float(completed_dances) * alpha * float(row["severity_norm"]) * wear_rate)
+        # Schema v4 is the direct, globally calibrated work-to-damage model:
+        # D_j = R * kappa * S_j. Older profiles retain the prior declared form.
+        if "damage_per_execution" in row:
+            per_execution_damage = float(row["damage_per_execution"])
+        else:
+            per_execution_damage = float(profile["alpha_accelerated"]) * float(row["severity_norm"])
+        damage = max(0.0, float(completed_dances) * per_execution_damage * wear_rate)
         health = float(np.clip(1.0 - damage, 0.0, 1.0))
         scale = floor + (1.0 - floor) * health**exponent
         values.append((str(row["joint"]), health, scale))

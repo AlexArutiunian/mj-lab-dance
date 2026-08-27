@@ -121,6 +121,13 @@ sensitivity analysis until `alpha` is tied to real G1 actuator or fleet data.
 
 ### Motion-Induced Results
 
+**Superseded mathematical version.** The figures and tables in this section
+were generated with schema v3, which used total-work scaling after per-motion
+max normalization. They are retained only as an audit trail and must not be
+used in a manuscript. Schema v4 now implements the direct joint-wise law
+`D_j,m(R) = R * kappa * S_j,m`; its replacement sweep is pending in
+`outputs/experiments/motion_induced_*_global_kappa/`.
+
 ![Motion-induced full-dance transition](figures/motion_induced_full_dance_transition.png)
 
 ![Motion-induced walking transition](figures/motion_induced_walk_vx04_transition.png)
