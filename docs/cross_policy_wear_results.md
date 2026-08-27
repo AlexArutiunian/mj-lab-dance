@@ -65,7 +65,7 @@ were evaluated with an externally imposed, identical degradation pattern.
 Therefore the apparent ordering below must not be described as a measured
 motion-induced wear ranking.
 
-### Motion-Specific Load Profiles: Next Experiment
+### Motion-Specific Load Profiles
 
 The required causal chain is:
 
@@ -73,20 +73,26 @@ The required causal chain is:
 
 For each healthy native trace we now calculate
 `S_j,m = integral(abs(tau_j(t) * qdot_j(t)) dt)`. Both the 29-joint shape and
-the total `sum_j S_j,m` matter. The current reference alpha is scaled by the
-ratio of total work-like proxy, rather than normalizing away the magnitude.
+the total `sum_j S_j,m` matter. Schema v4 applies one global `kappa` directly
+to every joint's accumulated work-like proxy.
 
-| Motion | Trace duration | Total work-like proxy | Relative to short-dance reference |
-| --- | ---: | ---: | ---: |
-| Full dance | 131.48 s | 21717.7 | 4.758x |
-| Walk `vx=0.4` | 60.00 s | 3047.4 | 0.668x |
+| Motion | Duration | Work proxy / execution | Mean power proxy | Relative work / execution |
+| --- | ---: | ---: | ---: | ---: |
+| Short dance | 16.24 s | 4564.4 | 281.1 | 1.000x |
+| Full dance | 131.48 s | 21717.7 | 165.2 | 4.758x |
+| Walk `vx=0.4` | 60.00 s | 3047.4 | 50.8 | 0.668x |
+
+Full dance accumulates the most work-like load per complete execution because
+it is much longer. Short dance is the most intense per unit time. These two
+quantities must be reported together; an execution count alone confounds
+motion intensity with duration.
 
 These are still accelerated proxy values, not calibrated physical wear rates.
-They are, however, motion-specific and will be used by the next sweeps instead
+They are, however, motion-specific and are used by the schema-v4 sweeps instead
 of the common profile. The profiles are generated at
 `outputs/experiments/motion_profiles/`.
 
-### Motion-Induced Degradation Protocol (Running)
+### Motion-Induced Degradation Protocol
 
 This is a separate experiment from the completed common-pattern curves.  It
 answers the model-conditional question:
@@ -99,10 +105,10 @@ For every motion `m`, a healthy native trace produces its own vector
 `S_j,m = integral(abs(tau_j * qdot_j) dt)`.  At repetition `R`, virtual robot
 `i` receives:
 
-`health_j(R,i,m) = clip(1 - R * alpha_m * severity_norm_j,m * z_i, 0, 1)`.
+`health_j(R,i,m) = clip(1 - R * kappa * S_j,m * z_i, 0, 1)`.
 
-`alpha_m` is proportional to `sum_j S_j,m`; `z_i` is a fixed lognormal
-wear-rate multiplier for virtual robot `i` (mean 1.0, CV 0.25).  Available
+`kappa = alpha_ref / max_j(S_j,ref)` is shared by every motion; `z_i` is a
+fixed lognormal wear-rate multiplier for virtual robot `i` (mean 1.0, CV 0.25). Available
 torque is then `0.10 + 0.90 * health_j^1.5`.  The same 100 `z_i` values are
 reused at every repetition checkpoint, so a curve compares the same virtual
 population as damage grows.
@@ -112,8 +118,8 @@ checkpoint:
 
 | Motion | Checkpoints | Trials/checkpoint | Canonical output |
 | --- | --- | ---: | --- |
-| Full dance | 0, 100k, 125k, 150k, 175k, 200k, 225k | 100 | `outputs/experiments/motion_induced_full_dance/` |
-| Walk `vx=0.4` | 0, 2.0M, 2.2M, 2.4M, 2.6M, 2.8M | 100 | `outputs/experiments/motion_induced_walk_vx04/` |
+| Full dance | 0, 125k, 150k, 175k, 200k, 225k | 100 | `outputs/experiments/motion_induced_full_dance_global_kappa/` |
+| Walk `vx=0.4` | 0, 1.2M, 1.4M, 1.6M, 1.8M, 2.0M | 100 | `outputs/experiments/motion_induced_walk_vx04_global_kappa/` |
 
 The repetition scales differ intentionally: their ranges follow each motion's
 own modeled per-execution work. These results remain an uncalibrated
@@ -126,7 +132,7 @@ actuator or fleet data.
 were generated with schema v3, which used total-work scaling after per-motion
 max normalization. They are retained only as an audit trail and must not be
 used in a manuscript. Schema v4 now implements the direct joint-wise law
-`D_j,m(R) = R * kappa * S_j,m`; its replacement sweep is pending in
+`D_j,m(R) = R * kappa * S_j,m`; its replacement sweep is complete in
 `outputs/experiments/motion_induced_*_global_kappa/`.
 
 ### Schema v4 Global-Kappa Results
@@ -154,11 +160,25 @@ The conditional 50% transition lies between `1.4M` and `1.6M` walk episodes;
 the steepest measured interval is `1.4M--1.6M`. This is an **uncalibrated
 model-conditional** result, not a physical G1 lifetime estimate.
 
-The full-dance v4 ensemble is still running under the same 100-member,
-common-random-number protocol. Its completed checkpoints currently show
-`0/100` falls at healthy, `47/100` at `125k`, `73/100` at `150k`, and `89/100`
-at `175k`. Its final figure and table will replace this status paragraph only
-after `200k` and `225k` finish.
+![Schema-v4 full-dance transition](figures/motion_induced_full_dance_global_kappa_transition.png)
+
+The completed v4 full-dance ensemble gives:
+
+| Full-dance executions | Falls / 100 | Median weakest-joint health | Median weakest torque scale |
+| ---: | ---: | ---: | ---: |
+| 0 | 0 | 1.000 | 1.000 |
+| 125k | 47 | 0.694 | 0.621 |
+| 150k | 73 | 0.633 | 0.554 |
+| 175k | 89 | 0.572 | 0.489 |
+| 200k | 96 | 0.511 | 0.429 |
+| 225k | 98 | 0.450 | 0.372 |
+
+The conditional 50% transition lies just above `125k` full-dance executions;
+the steepest measured interval is `125k--150k`. Under the same global-kappa
+law, full dance reaches functional failure at far fewer executions than walk.
+This combines its larger work proxy per execution with lower closed-loop
+tolerance to its own joint-wise degradation pattern; it is still not a
+calibrated physical lifetime prediction.
 
 ![Motion-induced full-dance transition](figures/motion_induced_full_dance_transition.png)
 
