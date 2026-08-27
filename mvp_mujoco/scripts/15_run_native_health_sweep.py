@@ -72,6 +72,8 @@ def _trajectory_metrics(reference: np.lib.npyio.NpzFile, candidate: np.lib.npyio
 
 
 def _run_one(
+    runner: Path,
+    runner_args: list[str],
     duration: float,
     joint_scales: dict[str, float],
     sample: int,
@@ -82,7 +84,8 @@ def _run_one(
     trace_path: Path,
 ) -> dict[str, object]:
     command = [
-        str(NATIVE_RUNNER),
+        str(runner),
+        *runner_args,
         "--duration",
         str(duration),
         "--trace",
@@ -153,18 +156,24 @@ def main() -> None:
         help="Reuse each virtual robot's wear-rate multiplier at every worn checkpoint.",
     )
     parser.add_argument("--duration", type=float, default=16.24)
+    parser.add_argument("--runner", type=Path, default=NATIVE_RUNNER)
+    parser.add_argument("--runner-arg", action="append", default=[], help="Extra argument passed through to --runner; may be repeated.")
     parser.add_argument("--damage-profile", type=Path, default=DEFAULT_PROFILE)
     parser.add_argument("--out-dir", type=Path, default=ROOT / "outputs/rb_y_16s/native_health_sweep")
     args = parser.parse_args()
+    args.out_dir = args.out_dir.resolve()
+    args.damage_profile = args.damage_profile.resolve()
     checkpoints = _parse_checkpoints(args.checkpoints)
     if args.trials < 1 or args.workers < 1 or args.wear_rate_cv < 0.0:
         raise ValueError("--trials and --workers must be positive")
     args.out_dir.mkdir(parents=True, exist_ok=True)
     profile = json.loads(args.damage_profile.read_text())
     reference_trace = args.out_dir / "trace_healthy.npz"
+    runner = args.runner.resolve()
+    runner_args = list(args.runner_arg)
     subprocess.run(
         [
-            str(NATIVE_RUNNER), "--duration", str(args.duration), "--repetition", "1",
+            str(runner), *runner_args, "--duration", str(args.duration), "--repetition", "1",
             "--damage-profile", str(args.damage_profile.resolve()), "--trace", str(reference_trace),
         ],
         check=True,
@@ -196,6 +205,8 @@ def main() -> None:
                 futures.append(
                     pool.submit(
                         _run_one,
+                        runner,
+                        runner_args,
                         args.duration,
                         scales,
                         i,

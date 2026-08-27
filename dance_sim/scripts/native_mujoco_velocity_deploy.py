@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
+import sys
 import time
 from pathlib import Path
 
@@ -17,6 +19,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 UNITREE = ROOT / "external" / "unitree_rl_mjlab"
+MVP = ROOT.parent / "mvp_mujoco"
 DEFAULT_POLICY = UNITREE / "deploy/robots/g1/config/policy/velocity/v0/exported/policy.onnx"
 DEFAULT_DEPLOY = UNITREE / "deploy/robots/g1/config/policy/velocity/v0/params/deploy.yaml"
 DEFAULT_MODEL = UNITREE / "src/assets/robots/unitree_g1/xmls/scene_g1.xml"
@@ -39,8 +42,12 @@ def _args() -> argparse.Namespace:
     parser.add_argument("--yaw-rate", type=float, default=0.0)
     parser.add_argument("--viewer", action="store_true")
     parser.add_argument("--realtime", action="store_true")
+    parser.add_argument("--progress-every-s", type=float, default=10.0, help="Headless progress interval in simulation seconds; 0 disables it.")
     parser.add_argument("--trace", type=Path, default=None)
     parser.add_argument("--torque-scale", type=float, default=1.0)
+    parser.add_argument("--repetition", type=int, default=1)
+    parser.add_argument("--damage-profile", type=Path, default=MVP / "outputs/rb_y_16s/damage_profile_1m_scale03.json")
+    parser.add_argument("--joint-torque-scale", action="append", default=[], metavar="JOINT=SCALE")
     parser.add_argument("--failure-pelvis-height", type=float, default=0.45)
     parser.add_argument("--failure-torso-height", type=float, default=0.55)
     parser.add_argument("--failure-hold-s", type=float, default=0.5)
@@ -85,12 +92,28 @@ def main() -> None:
     phase = 0.0
     phase_increment = control_dt / float(cfg["observations"]["gait_phase"]["params"]["period"])
     last_action = np.zeros(model.nu, dtype=np.float32)
-    torque_limits = model.actuator_ctrlrange * args.torque_scale
+    joint_names = [mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, int(model.actuator_trnid[i, 0])) for i in range(model.nu)]
+    torque_scales = np.full(model.nu, args.torque_scale, dtype=np.float64)
+    if args.repetition > 1:
+        sys.path.insert(0, str(MVP))
+        from wearbench.damage import damage_after_repetitions, health_from_damage, torque_scale_from_health
+
+        profile = json.loads(args.damage_profile.read_text())
+        rows = {str(row["joint"]): row for row in profile["joints"]}
+        severity = np.asarray([rows[name]["severity_norm"] for name in joint_names], dtype=np.float64)
+        health = health_from_damage(damage_after_repetitions(severity, args.repetition - 1, float(profile["alpha_accelerated"])))
+        torque_scales *= torque_scale_from_health(health, floor=0.10, exponent=1.5)
+    for spec in args.joint_torque_scale:
+        name, separator, raw_scale = spec.partition("=")
+        if not separator or name not in joint_names:
+            raise ValueError(f"Invalid --joint-torque-scale {spec!r}")
+        torque_scales[joint_names.index(name)] = float(raw_scale)
+    torque_limits = model.actuator_ctrlrange * torque_scales[:, None]
     steps = int(math.ceil(args.duration / control_dt))
     hold_steps = max(1, int(math.ceil(args.failure_hold_s / control_dt)))
     min_pelvis, min_torso, bad_steps, failure_step = float("inf"), float("inf"), 0, -1
     failed = False
-    trace: dict[str, list[np.ndarray]] = {"obs": [], "actions": [], "qpos": [], "qvel": [], "ctrl": []}
+    trace: dict[str, list[np.ndarray]] = {"obs": [], "actions": [], "qpos": [], "qvel": [], "ctrl": [], "pelvis_pos": [], "torso_pos": [], "torso_quat": []}
 
     def step(index: int) -> None:
         nonlocal phase, last_action, min_pelvis, min_torso, bad_steps, failure_step, failed
@@ -126,6 +149,9 @@ def main() -> None:
         if args.trace is not None:
             for name, value in (("obs", obs[0]), ("actions", action), ("qpos", data.qpos), ("qvel", data.qvel), ("ctrl", data.ctrl)):
                 trace[name].append(value.copy())
+            trace["pelvis_pos"].append(data.xipos[pelvis_body].copy())
+            trace["torso_pos"].append(data.xipos[torso_body].copy())
+            trace["torso_quat"].append(data.xquat[torso_body].copy())
 
     started = time.perf_counter()
     if args.viewer:
@@ -148,11 +174,17 @@ def main() -> None:
                 remaining = control_dt - (time.perf_counter() - tick)
                 if remaining > 0.0:
                     time.sleep(remaining)
+            if args.progress_every_s > 0 and ((index + 1) % max(1, round(args.progress_every_s / control_dt)) == 0 or index + 1 == steps):
+                elapsed = time.perf_counter() - started
+                sim_s = (index + 1) * control_dt
+                eta = elapsed / (index + 1) * (steps - index - 1)
+                print(f"[PROGRESS] sim_s={sim_s:.2f}/{steps * control_dt:.2f} ({100.0 * (index + 1) / steps:.1f}%) realtime={sim_s / elapsed:.2f}x eta={eta:.1f}s failed={int(failed)}", flush=True)
     elapsed = time.perf_counter() - started
     if args.trace is not None:
         args.trace.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(args.trace, **{name: np.asarray(values) for name, values in trace.items()})
-    print(f"[NATIVE VELOCITY] command=({args.vx:.3f},{args.vy:.3f},{args.yaw_rate:.3f}) steps={steps} sim_s={steps * control_dt:.2f} wall_s={elapsed:.3f} realtime={steps * control_dt / elapsed:.2f}x min_pelvis={min_pelvis:.6f} min_torso={min_torso:.6f} final_root_z={data.qpos[2]:.6f} failed={int(failed)} failure_t={failure_step * control_dt if failed else -1:.2f} torque_scale={args.torque_scale:.3f}")
+    weakest = int(np.argmin(torque_scales))
+    print(f"[NATIVE VELOCITY] command=({args.vx:.3f},{args.vy:.3f},{args.yaw_rate:.3f}) steps={steps} sim_s={steps * control_dt:.2f} wall_s={elapsed:.3f} realtime={steps * control_dt / elapsed:.2f}x min_pelvis={min_pelvis:.6f} min_torso={min_torso:.6f} final_root_z={data.qpos[2]:.6f} failed={int(failed)} failure_t={failure_step * control_dt if failed else -1:.2f} repetition={args.repetition} weakest={joint_names[weakest]} torque_scale={torque_scales[weakest]:.3f}")
 
 
 if __name__ == "__main__":

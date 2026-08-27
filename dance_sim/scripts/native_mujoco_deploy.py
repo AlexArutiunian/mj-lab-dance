@@ -81,6 +81,7 @@ def load_args() -> argparse.Namespace:
     parser.add_argument("--duration", type=float, default=16.24)
     parser.add_argument("--viewer", action="store_true")
     parser.add_argument("--realtime", action="store_true", help="Pace headless mode to wall time.")
+    parser.add_argument("--progress-every-s", type=float, default=10.0, help="Headless progress interval in simulation seconds; 0 disables it.")
     parser.add_argument("--trace", type=Path, default=None)
     parser.add_argument(
         "--repetition",
@@ -270,6 +271,11 @@ def main() -> None:
                 remaining = control_dt - (time.perf_counter() - tick)
                 if remaining > 0:
                     time.sleep(remaining)
+            if args.progress_every_s > 0 and ((step + 1) % max(1, round(args.progress_every_s / control_dt)) == 0 or step + 1 == steps):
+                elapsed = time.perf_counter() - start
+                sim_s = (step + 1) * control_dt
+                eta = elapsed / (step + 1) * (steps - step - 1)
+                print(f"[PROGRESS] sim_s={sim_s:.2f}/{steps * control_dt:.2f} ({100.0 * (step + 1) / steps:.1f}%) realtime={sim_s / elapsed:.2f}x eta={eta:.1f}s failed={int(failed)}", flush=True)
 
     elapsed = time.perf_counter() - start
     if args.trace is not None:
