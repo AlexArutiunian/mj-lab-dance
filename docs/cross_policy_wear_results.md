@@ -116,8 +116,9 @@ checkpoint:
 | Walk `vx=0.4` | 0, 2.0M, 2.2M, 2.4M, 2.6M, 2.8M | 100 | `outputs/experiments/motion_induced_walk_vx04/` |
 
 The repetition scales differ intentionally: their ranges follow each motion's
-own modeled per-execution work.  These results remain a calibrated-model
-sensitivity analysis until `alpha` is tied to real G1 actuator or fleet data.
+own modeled per-execution work. These results remain an uncalibrated
+model-conditional sensitivity analysis until `kappa` is tied to real G1
+actuator or fleet data.
 
 ### Motion-Induced Results
 
