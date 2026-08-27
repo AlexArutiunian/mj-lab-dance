@@ -129,6 +129,37 @@ used in a manuscript. Schema v4 now implements the direct joint-wise law
 `D_j,m(R) = R * kappa * S_j,m`; its replacement sweep is pending in
 `outputs/experiments/motion_induced_*_global_kappa/`.
 
+### Schema v4 Global-Kappa Results
+
+Schema v4 uses one global accelerated work-to-damage coefficient,
+`kappa = alpha_ref / max_j(S_j,ref)`. Thus the direct per-execution damage is
+`delta_D_j,m = kappa * S_j,m`, independently for each actuator. This separates
+the work accumulated by a motion from whether that work is concentrated in one
+joint or distributed across several joints.
+
+![Schema-v4 walking transition](figures/motion_induced_walk_vx04_global_kappa_transition.png)
+
+The completed v4 walking ensemble gives:
+
+| Walking episodes, 60 s | Falls / 100 | Median weakest-joint health | Median weakest torque scale |
+| ---: | ---: | ---: | ---: |
+| 0 | 0 | 1.000 | 1.000 |
+| 1.2M | 11 | 0.318 | 0.261 |
+| 1.4M | 31 | 0.204 | 0.183 |
+| 1.6M | 52 | 0.090 | 0.124 |
+| 1.8M | 68 | 0.000 | 0.100 |
+| 2.0M | 83 | 0.000 | 0.100 |
+
+The conditional 50% transition lies between `1.4M` and `1.6M` walk episodes;
+the steepest measured interval is `1.4M--1.6M`. This is an **uncalibrated
+model-conditional** result, not a physical G1 lifetime estimate.
+
+The full-dance v4 ensemble is still running under the same 100-member,
+common-random-number protocol. Its completed checkpoints currently show
+`0/100` falls at healthy, `47/100` at `125k`, `73/100` at `150k`, and `89/100`
+at `175k`. Its final figure and table will replace this status paragraph only
+after `200k` and `225k` finish.
+
 ![Motion-induced full-dance transition](figures/motion_induced_full_dance_transition.png)
 
 ![Motion-induced walking transition](figures/motion_induced_walk_vx04_transition.png)
