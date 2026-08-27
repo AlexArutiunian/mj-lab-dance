@@ -86,6 +86,39 @@ They are, however, motion-specific and will be used by the next sweeps instead
 of the common profile. The profiles are generated at
 `outputs/experiments/motion_profiles/`.
 
+### Motion-Induced Degradation Protocol (Running)
+
+This is a separate experiment from the completed common-pattern curves.  It
+answers the model-conditional question:
+
+> Given this accelerated damage law, which deployed motion accumulates the
+> most modeled actuator damage per execution, and when does that motion lose
+> closed-loop function under its own damage profile?
+
+For every motion `m`, a healthy native trace produces its own vector
+`S_j,m = integral(abs(tau_j * qdot_j) dt)`.  At repetition `R`, virtual robot
+`i` receives:
+
+`health_j(R,i,m) = clip(1 - R * alpha_m * severity_norm_j,m * z_i, 0, 1)`.
+
+`alpha_m` is proportional to `sum_j S_j,m`; `z_i` is a fixed lognormal
+wear-rate multiplier for virtual robot `i` (mean 1.0, CV 0.25).  Available
+torque is then `0.10 + 0.90 * health_j^1.5`.  The same 100 `z_i` values are
+reused at every repetition checkpoint, so a curve compares the same virtual
+population as damage grows.
+
+The currently running sweeps use fresh exact-start native processes at each
+checkpoint:
+
+| Motion | Checkpoints | Trials/checkpoint | Canonical output |
+| --- | --- | ---: | --- |
+| Full dance | 0, 100k, 125k, 150k, 175k, 200k, 225k | 100 | `outputs/experiments/motion_induced_full_dance/` |
+| Walk `vx=0.4` | 0, 2.0M, 2.2M, 2.4M, 2.6M, 2.8M | 100 | `outputs/experiments/motion_induced_walk_vx04/` |
+
+The repetition scales differ intentionally: their ranges follow each motion's
+own modeled per-execution work.  These results will remain a calibrated-model
+sensitivity analysis until `alpha` is tied to real G1 actuator or fleet data.
+
 ### Short Dance: 16.24 s
 
 ![Short-dance transition](figures/short_dance_transition.png)
