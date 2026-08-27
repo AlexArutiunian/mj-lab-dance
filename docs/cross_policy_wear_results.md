@@ -107,7 +107,7 @@ torque is then `0.10 + 0.90 * health_j^1.5`.  The same 100 `z_i` values are
 reused at every repetition checkpoint, so a curve compares the same virtual
 population as damage grows.
 
-The currently running sweeps use fresh exact-start native processes at each
+The completed sweeps used fresh exact-start native processes at each
 checkpoint:
 
 | Motion | Checkpoints | Trials/checkpoint | Canonical output |
@@ -116,8 +116,44 @@ checkpoint:
 | Walk `vx=0.4` | 0, 2.0M, 2.2M, 2.4M, 2.6M, 2.8M | 100 | `outputs/experiments/motion_induced_walk_vx04/` |
 
 The repetition scales differ intentionally: their ranges follow each motion's
-own modeled per-execution work.  These results will remain a calibrated-model
+own modeled per-execution work.  These results remain a calibrated-model
 sensitivity analysis until `alpha` is tied to real G1 actuator or fleet data.
+
+### Motion-Induced Results
+
+![Motion-induced full-dance transition](figures/motion_induced_full_dance_transition.png)
+
+![Motion-induced walking transition](figures/motion_induced_walk_vx04_transition.png)
+
+| Full-dance executions | Falls / 100 | Median weakest-joint health | Median weakest torque scale |
+| ---: | ---: | ---: | ---: |
+| 0 | 0 | 1.000 | 1.000 |
+| 100k | 43 | 0.708 | 0.636 |
+| 125k | 72 | 0.635 | 0.556 |
+| 150k | 95 | 0.562 | 0.480 |
+| 175k | 97 | 0.489 | 0.408 |
+| 200k | 98 | 0.416 | 0.342 |
+| 225k | 100 | 0.343 | 0.281 |
+
+| Walking episodes, 60 s | Falls / 100 | Median weakest-joint health | Median weakest torque scale |
+| ---: | ---: | ---: | ---: |
+| 0 | 0 | 1.000 | 1.000 |
+| 2.0M | 35 | 0.181 | 0.169 |
+| 2.2M | 50 | 0.099 | 0.128 |
+| 2.4M | 61 | 0.017 | 0.102 |
+| 2.6M | 72 | 0.000 | 0.100 |
+| 2.8M | 83 | 0.000 | 0.100 |
+
+Within this model, full dance reaches the conditional 50% fall transition
+between `100k` and `125k` of its own executions; walking reaches it at about
+`2.2M` 60-second episodes.  This is consistent with the motion traces: full
+dance has `4.758x` the short-dance total work proxy, while walking has
+`0.668x`, and the full-dance policy is also less tolerant to its resulting
+joint-wise torque loss.  The result is therefore a **model-conditional
+motion-induced ranking**, not evidence that a physical G1 will fail after
+these counts.  Its numerical repetition scale is controlled by the uncalibrated
+accelerated `alpha`; the robust finding here is the causal separation of each
+motion's load pattern and magnitude from its functional tolerance.
 
 ### Short Dance: 16.24 s
 
