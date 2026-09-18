@@ -137,6 +137,7 @@ mvp_mujoco/         wear model, experiment runners and visualization
 article_RA-L/       working paper draft
 docs/               architecture, protocol, model and known issues
 patches/            local changes required in upstream unitree_rl_mjlab
+research/           exploratory research extensions; not validated results
 ```
 
 Read [docs/status.md](docs/status.md) before interpreting any generated result.
@@ -185,3 +186,14 @@ with the same seed. A failed healthy control invalidates the pair.
 ## Scientific scope
 
 The current `alpha` is an intentionally accelerated and uncalibrated coefficient. Current repetition counts are integration stress-test coordinates, not predictions of physical G1 lifetime. See [docs/math_model.md](docs/math_model.md) and [docs/experiment_protocol.md](docs/experiment_protocol.md).
+
+
+## FEM-calibrated damage research
+
+The exploratory branch `research/fem-calibrated-damage-reward` investigates an
+offline high-fidelity structural-simulation teacher and a cheap damage surrogate
+for dance-policy reward/evaluation. Start at
+[`research/fem_damage_reward/README.md`](research/fem_damage_reward/README.md).
+
+This is currently a design/scaffold. It does not contain a validated FEM model,
+physical G1 lifetime estimate or fitted damage coefficients.
