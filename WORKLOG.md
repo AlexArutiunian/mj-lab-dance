@@ -43,3 +43,22 @@
 - Added realtime native viewing with health/torque-scale overlay and per-joint
   torque capability controls. Right-knee scales 1.0, 0.8 and 0.5 completed;
   scale 0.3 produced a held floor-level fall at 3.74 s.
+
+
+## 2026-09-18
+
+- Created `research/fem-calibrated-damage-reward` from `main`.
+- Defined a two-level architecture where native MuJoCo/MJLab remains the fast
+  closed-loop simulator and a structural solver is used offline to label
+  representative impact events.
+- Scoped the first high-fidelity model to the
+  foot -> ankle -> lower-leg -> knee load path instead of a full-robot crash
+  model.
+- Defined impact-event features, high-fidelity labels, provenance and quality
+  flags in `research/fem_damage_reward/DATA_SCHEMA.md`.
+- Added a dependency-light damage-surrogate interface with explicit OOD
+  rejection and deliberately no default physical coefficients.
+- Defined the baseline / force / impulse / FEM-surrogate policy comparison,
+  validation checks and claims boundary.
+- No FEM result, fitted damage law, RL improvement or physical lifetime result
+  is claimed by this branch yet.
