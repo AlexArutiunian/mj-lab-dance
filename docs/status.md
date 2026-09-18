@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-08-26.
+Updated: 2026-09-18 (FEM damage research branch).
 
 ## Confirmed
 
@@ -205,3 +205,30 @@ Thus an individual first fall is not an irreversible-damage threshold in this
 model. The appropriate reported result is the aggregate conditional fall
 fraction with its uncertainty interval, not a claimed physical bifurcation or
 real-G1 lifetime limit.
+
+
+## FEM-calibrated impact research
+
+Branch: `research/fem-calibrated-damage-reward`.
+
+Status: `MODEL_ASSUMPTION_ONLY` / design scaffold.
+
+Added:
+
+- a two-level MuJoCo/MJLab -> high-fidelity structural solver -> surrogate loop;
+- an event-level impact feature and provenance schema;
+- candidate structural labels including stress, plastic strain, plastic work,
+  fastener/bearing loads and residual deformation;
+- an OOD-aware surrogate interface with no invented coefficients;
+- a staged baseline / force / impulse / FEM-surrogate experiment matrix.
+
+Not yet implemented or claimed:
+
+- a Unitree G1 FEM model;
+- high-fidelity labels;
+- fitted surrogate coefficients;
+- RL training with the damage reward;
+- real-robot calibration.
+
+The next concrete gate is deterministic impact-event extraction from the
+qualified native-MuJoCo dance reference.
