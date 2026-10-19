@@ -49,7 +49,15 @@ export async function loadG1(base,report) {
       x.set(data.geom_xpos.subarray(id*3,id*3+3),i*12);
       x.set(data.geom_xmat.subarray(id*9,id*9+9),i*12+3);
     });
-    postMessage({type:'pose',time:t,failed,root:[data.qpos[0],data.qpos[1],data.qpos[2]],transform:x},[x.buffer]);
+    postMessage({
+      type:'pose',time:t,failed,
+      root:[data.qpos[0],data.qpos[1],data.qpos[2]],
+      // MuJoCo body orientation is a row-major 3x3 matrix in world coordinates.
+      // Use the current torso body frame, not the free-base quaternion.
+      torsoPosition:Array.from(data.xipos.subarray(torso*3,torso*3+3)),
+      torsoRotation:Array.from(data.xmat.subarray(torso*9,torso*9+9)),
+      transform:x
+    },[x.buffer]);
   };
   report('Модель G1 готова');
   return {mj,model,data,actuator,pelvis,torso,gyroAdr:model.sensor_adr[gyro],geoms,transfer,pose};
