@@ -1,0 +1,47 @@
+name: Browser WearBench build and Pages
+on:
+  push:
+    branches: [feature/browser-wearbench]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: wearbench-pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: AlexArutiunian/qwen-unitree-action-dataset-preview
+          path: _web_model_source
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python motion dependencies
+        run: python -m pip install numpy pyyaml
+      - name: Export the three committed motions and policies
+        run: python browser/scripts/prepare_assets.py --model-source _web_model_source/web/public/model
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install, test, build
+        working-directory: browser
+        run: |
+          npm install --no-audit --no-fund
+          npm test
+          mkdir -p public/ort
+          find node_modules/onnxruntime-web/dist -maxdepth 1 -type f -name 'ort-wasm*.wasm' -exec cp {} public/ort/ \;
+          find node_modules/onnxruntime-web/dist -maxdepth 1 -type f -name 'ort-wasm*.mjs' -exec cp {} public/ort/ \;
+          npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: browser/dist
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
