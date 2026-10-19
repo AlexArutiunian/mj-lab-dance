@@ -12,7 +12,7 @@ header strong{font-size:21px;letter-spacing:-.04em}header strong span{color:#5dc
   backdrop-filter:blur(8px);white-space:nowrap}
 .camera-mode:hover{border-color:#78bbaa;background:#233b47}
 .camera-mode:focus-visible{outline:2px solid #75d9c4;outline-offset:3px}
-.camera-mode[data-mode="follow"]{border-color:#599e97;color:#7ce6d1}
+.camera-mode[data-mode="follow"],.camera-mode[data-mode="torso"]{border-color:#599e97;color:#7ce6d1}
 @media(max-width:500px){.camera-mode{right:14px;top:74px;font-size:11px;padding:8px}
   #stage-status{top:120px;max-width:calc(100% - 32px);font-size:12px}}
 footer{position:absolute;left:30px;right:30px;bottom:28px;display:flex;justify-content:space-between;font-size:15px;font-variant-numeric:tabular-nums;gap:10px}
