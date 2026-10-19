@@ -92,7 +92,7 @@ try{
     throw new Error('Torso camera did not follow the actual falling body');
   if(!Number.isFinite(lyingTorsoNormalZ)||Math.abs(lyingTorsoNormalZ-standingTorsoNormalZ)<.05)
     throw new Error('Torso camera received no meaningful rotation during the fall');
-  console.log('TORSO CAMERA FALL: exact normal alignment',aligned,
+  console.log('TORSO CAMERA FALL: level horizon and yaw alignment',aligned,
     'body axis Z',standingTorsoNormalZ.toFixed(3),'->',lyingTorsoNormalZ.toFixed(3),
     'target Z',standingTorsoTargetZ.toFixed(3),'->',lyingTorsoTargetZ.toFixed(3));
   // Confirm world-front mode continues to track the low post-fall position.
