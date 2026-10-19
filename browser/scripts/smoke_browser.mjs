@@ -78,7 +78,7 @@ try{
   const afterFallTime=Number.parseFloat(await page.locator('#time').textContent());
   if(afterFallTime-fallTime<1.0)throw new Error('Passive MuJoCo did not advance after falling');
   console.log('PASSIVE FALL: simulation continued',Number(afterFallTime-fallTime).toFixed(2),'s');
-  // Exact torso-normal tracking must remain perpendicular throughout falling.
+  // Verify the torso-follow camera stays level and tracks the grounded robot.
   await page.waitForTimeout(350);
   const aligned=Number(await page.locator('#viewport').getAttribute('data-camera-normal-alignment'));
   const lyingTorsoNormalZ=Number(await page.locator('#viewport').getAttribute('data-camera-torso-normal-z'));
