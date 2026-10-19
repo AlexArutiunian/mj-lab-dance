@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WearBench-G1 | MuJoCo Browser</title>
+</head>
+<body>
+<main>
+<section class="stage">
+<header><strong>WearBench<span> G1</span></strong><small>ONNX Runtime Web + MuJoCo WASM</small></header>
+<div id="viewport"></div>
+<div id="stage-status">Загрузка движка…</div>
+<footer><span id="time">0.00 с</span><span id="verdict">Симуляция не запущена</span></footer>
+</section>
+<aside>
+<small class="eyebrow">W E A R B E N C H</small>
+<h1>Движение и деградация приводов</h1>
+<p>Инференс исходных ONNX-политик в браузере с физической симуляцией Unitree G1.</p>
+<label for="motion">Движение</label>
+<select id="motion">
+<option value="short">Короткий танец · 16,24 с</option>
+<option value="full">Полный танец · 131,48 с</option>
+<option value="clip10">Фрагмент танца · 10 с</option>
+</select>
+<label for="repeats">Условные выполненные повторы (R)</label>
+<input id="repeats" type="number" value="0" min="0" max="100000000" step="10000">
+<div class="actions"><button id="play" disabled>Запустить</button><button id="reset" disabled>Сброс</button></div>
+<div class="divider"></div>
+<div class="metric"><span>Здоровье слабейшего сустава h</span><strong id="health">—</strong></div>
+<div class="metric"><span>Доступный момент u</span><strong id="torque">—</strong></div>
+<div class="metric"><span>Наиболее ослабленный сустав</span><strong id="weakest">—</strong></div>
+<div class="notice" id="message">Загрузка модели и политики…</div>
+<p class="disclaimer">R - ускоренная модельная координата, не оценка ресурса настоящего Unitree G1. Браузерная реализация проходит отдельную валидацию; официальные численные эксперименты выполнялись в native MuJoCo.</p>
+</aside>
+</main>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
