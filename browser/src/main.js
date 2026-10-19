@@ -13,36 +13,56 @@ renderer.outputColorSpace=THREE.SRGBColorSpace;
 canvas.appendChild(renderer.domElement);
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.target.set(0,0,.75);controls.enableDamping=true;controls.update();
-// Follow camera stays oriented toward the robot's original front (+X in G1).
-// Only world position is tracked: it does not spin when the robot rotates or falls.
+// Camera modes: world-fixed frontal tracking, torso-relative perpendicular,
+// and unrestricted free orbit. Torso-relative mode uses the actual MuJoCo
+// torso_link body axes and follows all its yaw, pitch and roll.
+const cameraModes=['follow','torso','free'];
 let cameraMode='follow';
 const rootPosition=new THREE.Vector3(0,0,.8);
 const followTarget=new THREE.Vector3(0,0,.75);
 const targetGoal=new THREE.Vector3();
 const eyeGoal=new THREE.Vector3();
 const frontalOffset=new THREE.Vector3(3.25,0,.72);
+const torsoPosition=new THREE.Vector3(0,0,1.1);
+const torsoNormal=new THREE.Vector3(1,0,0);
+const torsoUp=new THREE.Vector3(0,0,1);
+const cameraForward=new THREE.Vector3();
+const cameraDistance=3.25;
 const cameraButton=$('camera-mode');
+const cameraLabels={
+  follow:'Камера: спереди',
+  torso:'Камера: по торсу',
+  free:'Камера: свободная'
+};
+const cameraDescriptions={
+  follow:'Мировой фронтальный ракурс; слежение за перемещением',
+  torso:'Оптическая ось строго перпендикулярна торсу G1, включая наклоны',
+  free:'Вращение, зум и перемещение камеры мышью'
+};
 const updateCameraButton=()=>{
-  const follow=cameraMode==='follow';
   cameraButton.dataset.mode=cameraMode;
-  cameraButton.setAttribute('aria-pressed',String(follow));
-  cameraButton.textContent=follow?'Камера: спереди':'Камера: свободная';
-  cameraButton.title=follow?'Слежение спереди, нажмите для свободного обзора':
-    'Свободный обзор, нажмите для слежения спереди';
+  cameraButton.setAttribute('aria-label',cameraDescriptions[cameraMode]);
+  cameraButton.setAttribute('aria-pressed',String(cameraMode!=='free'));
+  cameraButton.textContent=cameraLabels[cameraMode];
+  cameraButton.title=cameraDescriptions[cameraMode]+'. Нажмите, чтобы сменить режим';
 };
 controls.enabled=false;
 updateCameraButton();
 cameraButton.addEventListener('click',()=>{
-  cameraMode=cameraMode==='follow'?'free':'follow';
+  const previous=cameraMode;
+  cameraMode=cameraModes[(cameraModes.indexOf(cameraMode)+1)%cameraModes.length];
   controls.enabled=cameraMode==='free';
   if(controls.enabled){
-    controls.target.copy(followTarget);
+    // Retain the visible camera position on transition to orbit mode.
+    controls.target.copy(previous==='torso'?torsoPosition:followTarget);
+    camera.up.set(0,0,1);
     controls.update();
   }
   updateCameraButton();
 });
 function updateFollowCamera(dt){
-  // Height is clamped so a lying robot remains visible after the fall.
+  // World-facing mode keeps the horizon fixed and follows the robot position.
+  camera.up.set(0,0,1);
   targetGoal.set(rootPosition.x,rootPosition.y,
     THREE.MathUtils.clamp(rootPosition.z*.65+.18,.34,.86));
   const factor=1-Math.exp(-6*Math.min(dt,.1));
@@ -52,6 +72,19 @@ function updateFollowCamera(dt){
   camera.lookAt(followTarget);
   canvas.dataset.cameraTargetZ=followTarget.z.toFixed(4);
   canvas.dataset.cameraTargetX=followTarget.x.toFixed(4);
+}
+function updateTorsoCamera(){
+  // Both the optical axis and the camera's up vector are expressed in the
+  // actual torso frame. No smoothing is applied: camera is exactly normal
+  // to the torso surface on each rendered frame, including while falling.
+  camera.position.copy(torsoPosition).addScaledVector(torsoNormal,cameraDistance);
+  camera.up.copy(torsoUp);
+  camera.lookAt(torsoPosition);
+  camera.getWorldDirection(cameraForward);
+  canvas.dataset.cameraNormalAlignment=(-cameraForward.dot(torsoNormal)).toFixed(6);
+  canvas.dataset.cameraTorsoNormalZ=torsoNormal.z.toFixed(4);
+  canvas.dataset.cameraTargetZ=torsoPosition.z.toFixed(4);
+  canvas.dataset.cameraTargetX=torsoPosition.x.toFixed(4);
 }
 scene.add(new THREE.HemisphereLight(0xb8d5f1,0x3b5363,2));
 const key=new THREE.DirectionalLight(0xffffff,3);
@@ -71,6 +104,16 @@ const observer=new ResizeObserver(resize);observer.observe(canvas);resize();
 function updateTransform(msg){
   if(msg.root?.length===3&&msg.root.every(Number.isFinite)){
     rootPosition.set(...msg.root);
+  }
+  if(msg.torsoPosition?.length===3&&msg.torsoRotation?.length===9&&
+      msg.torsoPosition.every(Number.isFinite)&&
+      msg.torsoRotation.every(Number.isFinite)){
+    torsoPosition.set(...msg.torsoPosition);
+    const m=msg.torsoRotation;
+    // Column 0 is torso-forward (+X), column 2 is torso-up (+Z).
+    // MuJoCo's xmat is row-major, so extract each world-space column.
+    torsoNormal.set(m[0],m[3],m[6]).normalize();
+    torsoUp.set(m[2],m[5],m[8]).normalize();
   }
   const x=msg.transform;
   if(x.length!==meshes.length*12)return;
@@ -183,6 +226,7 @@ function animate(now){
   requestAnimationFrame(animate);
   const elapsed=Math.min(.1,(now-lastTime)/1000);lastTime=now;
   if(cameraMode==='follow')updateFollowCamera(elapsed);
+  else if(cameraMode==='torso')updateTorsoCamera();
   else controls.update();
   if(playing){accumulator+=elapsed; if(accumulator>=.02){accumulator-=.02;worker.postMessage({type:'tick'})}}
   renderer.render(scene,camera);
