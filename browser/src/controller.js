@@ -3,8 +3,16 @@ import {DT,healthState,alphaRef,mul,inv,yawQuat,torsoQuat,rot6} from './model.js
 const PHYSICS_DT=0.002;
 const loadJson=async url=>{const r=await fetch(url);if(!r.ok)throw Error(url+' : HTTP '+r.status);return r.json()};
 async function gzJson(url){
-  const r=await fetch(url);if(!r.ok)throw Error(url+' : HTTP '+r.status);
-  return JSON.parse(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text());
+  const r=await fetch(url);
+  if(!r.ok)throw Error(url+' : HTTP '+r.status);
+  const raw=new Uint8Array(await r.arrayBuffer());
+  if(raw.length===0)throw Error('Empty motion reference: '+url);
+  if(raw[0]===0x1f&&raw[1]===0x8b){
+    const stream=new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return JSON.parse(await new Response(stream).text());
+  }
+  // Some servers transparently decompress HTTP responses with Content-Encoding: gzip.
+  return JSON.parse(new TextDecoder().decode(raw));
 }
 export async function loadPreset(base,name,report){
   const url=new URL('policies/'+name+'/',base);
