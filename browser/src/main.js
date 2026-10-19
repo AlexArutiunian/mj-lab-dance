@@ -40,7 +40,6 @@ function updateTransform(msg){
     meshes[i].matrixWorldNeedsUpdate=true;
   }
   $('time').textContent=msg.time.toFixed(2)+' с';
-  if(msg.failed)$('verdict').textContent='Обнаружено падение';
 }
 function addGeometry(parts){
   for(const mesh of meshes){scene.remove(mesh);mesh.geometry.dispose();mesh.material.dispose()}
@@ -76,6 +75,26 @@ worker.onmessage=({data:m})=>{
     playing=!m.paused;$('play').textContent=playing?'Пауза':'Продолжить';
     $('verdict').textContent=playing?'Выполняется':'Пауза';
     $('play').disabled=false;
+  }
+  if(m.type==='fall'){
+    // Keep the animation loop active while unpowered MuJoCo is settling.
+    playing=true;
+    $('play').disabled=true;
+    $('play').textContent='Свободное падение';
+    $('verdict').textContent='Падение: приводы отключены';
+    $('stage-status').textContent='Пассивная динамика, момент 0 Н·м';
+  }
+  if(m.type==='settled'){
+    playing=false;
+    $('play').disabled=false;
+    $('play').textContent='Запустить';
+    $('verdict').textContent=m.settled?'Лежит: управление отключено':'Пассивное падение: расчёт завершён';
+    $('stage-status').textContent=m.settled?
+      'Робот в покое. Для нового опыта нажмите «Сброс»':
+      'Пассивный этап завершён по лимиту времени';
+    $('message').textContent=m.settled?
+      'Приводы остаются выключенными, физическая поза сохранена до сброса':
+      'Суставы без управляющего момента. Конечная поза сохранена до сброса';
   }
   if(m.type==='reset'){
     playing=false;$('play').textContent='Запустить';
