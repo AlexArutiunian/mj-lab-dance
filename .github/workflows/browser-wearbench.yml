@@ -39,6 +39,23 @@ jobs:
           find node_modules/onnxruntime-web/dist -maxdepth 1 -type f -name 'ort-wasm*.wasm' -exec cp {} public/ort/ \;
           find node_modules/onnxruntime-web/dist -maxdepth 1 -type f -name 'ort-wasm*.mjs' -exec cp {} public/ort/ \;
           npm run build
+      - name: Browser smoke test with Chromium
+        working-directory: browser
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          npm run dev -- --port 4173 > /tmp/wearbench-vite.log 2>&1 &
+          sleep 5
+          node scripts/smoke_browser.mjs
+      - name: Save browser screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wearbench-browser-smoke
+          path: |
+            browser/smoke.png
+            browser/smoke-failed.png
+          if-no-files-found: ignore
       - uses: actions/upload-pages-artifact@v3
         with:
           path: browser/dist
