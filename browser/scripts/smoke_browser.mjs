@@ -18,11 +18,18 @@ try{
     throw new Error('Expected follow camera mode on load');
   const initialLookZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
   await cameraMode.click();
+  if(await cameraMode.getAttribute('data-mode')!=='torso')
+    throw new Error('Torso camera mode toggle failed');
+  await page.waitForFunction(() =>
+    Number(document.querySelector('#viewport').dataset.cameraNormalAlignment)>.99999,
+    null,{timeout:10000});
+  console.log('TORSO CAMERA: camera axis is perpendicular to the chest');
+  await cameraMode.click();
   if(await cameraMode.getAttribute('data-mode')!=='free')
     throw new Error('Free orbit mode toggle failed');
   await cameraMode.click();
   if(await cameraMode.getAttribute('data-mode')!=='follow')
-    throw new Error('Follow camera mode toggle failed');
+    throw new Error('Front-follow camera mode toggle failed');
   console.log('FRONT FOLLOW CAMERA: initial target Z',initialLookZ.toFixed(3));
   for(const mode of ['short','full','clip10']){
     await page.locator('#motion').selectOption(mode);
@@ -48,6 +55,12 @@ try{
   await page.waitForTimeout(300);
   await page.locator('#motion').selectOption('short');
   await page.locator('#repeats').fill('100000000');
+  // Watch the same modelled fall through its rotating torso frame.
+  await cameraMode.click();
+  if(await cameraMode.getAttribute('data-mode')!=='torso')
+    throw new Error('Torso camera not selected for fall test');
+  const standingTorsoNormalZ=Number(await page.locator('#viewport').getAttribute('data-camera-torso-normal-z'));
+  const standingTorsoTargetZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
   await page.locator('#play').click();
   await page.waitForFunction(() =>
     document.querySelector('#verdict').textContent.includes('приводы отключены'),
@@ -61,11 +74,31 @@ try{
   const afterFallTime=Number.parseFloat(await page.locator('#time').textContent());
   if(afterFallTime-fallTime<1.0)throw new Error('Passive MuJoCo did not advance after falling');
   console.log('PASSIVE FALL: simulation continued',Number(afterFallTime-fallTime).toFixed(2),'s');
-  // The camera must track the fallen robot instead of remaining at standing height.
+  // Exact torso-normal tracking must remain perpendicular throughout falling.
   await page.waitForTimeout(350);
+  const aligned=Number(await page.locator('#viewport').getAttribute('data-camera-normal-alignment'));
+  const lyingTorsoNormalZ=Number(await page.locator('#viewport').getAttribute('data-camera-torso-normal-z'));
+  const lyingTorsoTargetZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
+  if(!Number.isFinite(aligned)||aligned<.99999)
+    throw new Error('Torso camera lost perpendicular alignment: '+aligned);
+  if(!Number.isFinite(lyingTorsoTargetZ)||lyingTorsoTargetZ>=standingTorsoTargetZ-.12)
+    throw new Error('Torso camera did not follow the actual falling body');
+  if(!Number.isFinite(lyingTorsoNormalZ)||Math.abs(lyingTorsoNormalZ-standingTorsoNormalZ)<.05)
+    throw new Error('Torso camera received no meaningful rotation during the fall');
+  console.log('TORSO CAMERA FALL: exact normal alignment',aligned,
+    'body axis Z',standingTorsoNormalZ.toFixed(3),'->',lyingTorsoNormalZ.toFixed(3),
+    'target Z',standingTorsoTargetZ.toFixed(3),'->',lyingTorsoTargetZ.toFixed(3));
+  // Confirm world-front mode continues to track the low post-fall position.
+  await cameraMode.click();
+  if(await cameraMode.getAttribute('data-mode')!=='free')
+    throw new Error('Could not return to free mode');
+  await cameraMode.click();
+  if(await cameraMode.getAttribute('data-mode')!=='follow')
+    throw new Error('Could not return to fixed front mode');
+  await page.waitForTimeout(900);
   const lyingLookZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
   if(!Number.isFinite(lyingLookZ)||lyingLookZ>initialLookZ-.06)
-    throw new Error('Follow camera did not lower its target after the robot fell: '+lyingLookZ);
+    throw new Error('Front-follow camera did not lower its target after the robot fell');
   console.log('FRONT FOLLOW CAMERA: target lowered from',initialLookZ.toFixed(3),'to',lyingLookZ.toFixed(3));
   const finalTime=await page.locator('#time').textContent();
   await page.waitForTimeout(700);
