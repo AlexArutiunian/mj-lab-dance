@@ -1,7 +1,12 @@
 import {loadG1} from './g1-assets.js';
-import {loadPreset,reset,step,scales,configureONNX} from './controller.js';
+import {loadPreset,reset,step,passiveStep,scales,configureONNX} from './controller.js';
 let world,base,prepared=new Map(),profile=new Map(),referenceMax=0;
 let current=null,token=0,running=false,busy=false,selected='short';
+// All durations are simulation time at the 50 Hz control/update cadence.
+const PASSIVE_MIN_FRAMES=100;       // at least 2 s of unpowered dynamics
+const PASSIVE_STABLE_FRAMES=40;     // 0.8 s continuously at rest
+const PASSIVE_MAX_FRAMES=1000;      // 20 s safety bound
+const REST_VELOCITY_MAX=0.08;      // m/s and rad/s from MuJoCo generalized velocities
 const notify=message=>postMessage({type:'status',message});
 const microtask=()=>new Promise(r=>setTimeout(r,0));
 async function init(msg){
@@ -54,7 +59,7 @@ async function start(msg){
   }
   if(id!==token)return;
   const state=reset(world,p);
-  current={p,state,limits,frame:0,failed:false};
+  current={p,state,limits,frame:0,failed:false,phase:'policy',passiveFrames:0,stableFrames:0};
   running=true;
   const weakest=statuses?statuses.reduce((a,b)=>a.u<b.u?a:b):{h:1,u:1};
   const index=statuses?statuses.indexOf(weakest):-1;
@@ -69,12 +74,52 @@ async function tick(){
   busy=true;
   try{
     const c=current;
-    if(c.frame>=c.p.motion.count){running=false;postMessage({type:'finish',failed:c.failed});return}
-    c.failed ||=await step(world,c.p,c.frame,c.state,c.limits,null);
-    c.frame++;
-    world.pose(c.frame*0.02,c.failed);
-    if(c.frame>=c.p.motion.count){running=false;postMessage({type:'finish',failed:c.failed})}
-  }finally{busy=false}
+    if(c.phase==='policy'){
+      if(c.frame>=c.p.motion.count){
+        running=false;
+        postMessage({type:'finish',failed:false});
+        return;
+      }
+      // Always perform policy inference while healthy: do not short-circuit
+      // subsequent MuJoCo steps when a failure has been detected.
+      const fallen=await step(world,c.p,c.frame,c.state,c.limits,null);
+      c.frame++;
+      if(fallen){
+        c.failed=true;
+        c.phase='passive';
+        world.data.ctrl.fill(0);
+        postMessage({type:'fall',time:c.frame*0.02});
+        notify('Падение зафиксировано. Моменты приводов обнулены, расчёт продолжается без управления');
+      }
+      world.pose(c.frame*0.02,c.failed);
+      if(!c.failed&&c.frame>=c.p.motion.count){
+        running=false;
+        postMessage({type:'finish',failed:false});
+      }
+      return;
+    }
+
+    // Post-failure sequence: physics keeps stepping with all motor commands zero.
+    // No ONNX inference, no target angles, and no PD control in this phase.
+    if(c.phase==='passive'){
+      const motion=passiveStep(world);
+      c.passiveFrames++;
+      const nearlyStatic=motion.contacts>0&&motion.maxVelocity<REST_VELOCITY_MAX;
+      c.stableFrames=nearlyStatic?c.stableFrames+1:0;
+      world.pose((c.frame+c.passiveFrames)*0.02,true);
+      const settled=c.passiveFrames>=PASSIVE_MIN_FRAMES&&
+        c.stableFrames>=PASSIVE_STABLE_FRAMES;
+      const timedOut=c.passiveFrames>=PASSIVE_MAX_FRAMES;
+      if(settled||timedOut){
+        c.phase='rest';
+        running=false;
+        // Leave the final physical pose on the floor until explicit Reset.
+        world.data.ctrl.fill(0);
+        postMessage({type:'settled',settled,contacts:motion.contacts,
+          maxVelocity:motion.maxVelocity,passiveTime:c.passiveFrames*0.02});
+      }
+    }
+  }finally{busy=false;}
 }
 self.onmessage=async({data:m})=>{
   try{
