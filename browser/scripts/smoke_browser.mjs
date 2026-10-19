@@ -28,6 +28,35 @@ try{
   console.log('AGED short: time',await page.locator('#time').textContent(),
     'health',await page.locator('#health').textContent(),
     'torque',await page.locator('#torque').textContent());
+  // Under severe modelled torque loss, the robot must fall, switch off
+  // active motor torques and keep stepping MuJoCo until the passive phase ends.
+  await page.locator('#reset').click();
+  await page.waitForTimeout(300);
+  await page.locator('#motion').selectOption('short');
+  await page.locator('#repeats').fill('100000000');
+  await page.locator('#play').click();
+  await page.waitForFunction(() =>
+    document.querySelector('#verdict').textContent.includes('приводы отключены'),
+    null,{timeout:180000});
+  const fallTime=Number.parseFloat(await page.locator('#time').textContent());
+  console.log('FALL DETECTED at',fallTime,'s. ONNX/PD commands disabled');
+  await page.waitForFunction(() =>
+    document.querySelector('#verdict').textContent.includes('управление отключено') ||
+    document.querySelector('#verdict').textContent.includes('расчёт завершён'),
+    null,{timeout:120000});
+  const afterFallTime=Number.parseFloat(await page.locator('#time').textContent());
+  if(afterFallTime-fallTime<1.0)throw new Error('Passive MuJoCo did not advance after falling');
+  console.log('PASSIVE FALL: simulation continued',Number(afterFallTime-fallTime).toFixed(2),'s');
+  const finalTime=await page.locator('#time').textContent();
+  await page.waitForTimeout(700);
+  if(await page.locator('#time').textContent()!==finalTime)
+    throw new Error('Robot should retain the terminal pose until Reset');
+  await page.locator('#reset').click();
+  await page.waitForFunction(() =>
+    document.querySelector('#time').textContent==='0.00 с' &&
+    document.querySelector('#health').textContent==='1.000',
+    null,{timeout:10000});
+  console.log('RESET after passive fall OK');
   await page.screenshot({path:'smoke.png',fullPage:true});
 } catch(error){
   console.error('BROWSER SMOKE ERROR:',error.message);
