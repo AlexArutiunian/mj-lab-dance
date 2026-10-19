@@ -13,9 +13,8 @@ renderer.outputColorSpace=THREE.SRGBColorSpace;
 canvas.appendChild(renderer.domElement);
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.target.set(0,0,.75);controls.enableDamping=true;controls.update();
-// Camera modes: world-fixed frontal tracking, torso-relative perpendicular,
-// and unrestricted free orbit. Torso-relative mode uses the actual MuJoCo
-// torso_link body axes and follows all its yaw, pitch and roll.
+// Camera modes: world-front, torso yaw tracking with a level horizon,
+// and unrestricted free orbit. Both tracking modes use world +Z for up.
 const cameraModes=['follow','torso','free'];
 let cameraMode='follow';
 const rootPosition=new THREE.Vector3(0,0,.8);
@@ -25,9 +24,12 @@ const eyeGoal=new THREE.Vector3();
 const frontalOffset=new THREE.Vector3(3.25,0,.72);
 const torsoPosition=new THREE.Vector3(0,0,1.1);
 const torsoNormal=new THREE.Vector3(1,0,0);
-const torsoUp=new THREE.Vector3(0,0,1);
+const torsoHeading=new THREE.Vector3(1,0,0);
+const worldUp=new THREE.Vector3(0,0,1);
 const cameraForward=new THREE.Vector3();
+const horizontalLookAt=new THREE.Vector3();
 const cameraDistance=3.25;
+const TORSO_HEADING_MIN=0.15;  // freeze yaw when chest normal points nearly vertical
 const cameraButton=$('camera-mode');
 const cameraLabels={
   follow:'Камера: спереди',
@@ -36,7 +38,7 @@ const cameraLabels={
 };
 const cameraDescriptions={
   follow:'Мировой фронтальный ракурс; слежение за перемещением',
-  torso:'Оптическая ось строго перпендикулярна торсу G1, включая наклоны',
+  torso:'Камера горизонтальна, перед торсом, поворачивается только по курсу корпуса',
   free:'Вращение, зум и перемещение камеры мышью'
 };
 const updateCameraButton=()=>{
@@ -74,17 +76,22 @@ function updateFollowCamera(dt){
   canvas.dataset.cameraTargetX=followTarget.x.toFixed(4);
 }
 function updateTorsoCamera(){
-  // Both the optical axis and the camera's up vector are expressed in the
-  // actual torso frame. No smoothing is applied: camera is exactly normal
-  // to the torso surface on each rendered frame, including while falling.
-  camera.position.copy(torsoPosition).addScaledVector(torsoNormal,cameraDistance);
-  camera.up.copy(torsoUp);
-  camera.lookAt(torsoPosition);
+  // Track torso yaw only, never its pitch or roll.
+  // The lens and its look-at point have the same world Z, keeping
+  // the viewing axis EXACTLY parallel to the horizontal ground plane.
+  // Keep a minimum eye height when the torso lies close to the floor.
+  const z=Math.max(0.34,torsoPosition.z);
+  horizontalLookAt.set(torsoPosition.x,torsoPosition.y,z);
+  camera.position.copy(horizontalLookAt).addScaledVector(torsoHeading,cameraDistance);
+  camera.up.copy(worldUp);
+  camera.lookAt(horizontalLookAt);
   camera.getWorldDirection(cameraForward);
-  canvas.dataset.cameraNormalAlignment=(-cameraForward.dot(torsoNormal)).toFixed(6);
+  canvas.dataset.cameraHorizontalZ=cameraForward.z.toFixed(6);
+  canvas.dataset.cameraUpAlignment=camera.up.dot(worldUp).toFixed(6);
+  canvas.dataset.cameraNormalAlignment=(-cameraForward.dot(torsoHeading)).toFixed(6);
   canvas.dataset.cameraTorsoNormalZ=torsoNormal.z.toFixed(4);
-  canvas.dataset.cameraTargetZ=torsoPosition.z.toFixed(4);
-  canvas.dataset.cameraTargetX=torsoPosition.x.toFixed(4);
+  canvas.dataset.cameraTargetZ=horizontalLookAt.z.toFixed(4);
+  canvas.dataset.cameraTargetX=horizontalLookAt.x.toFixed(4);
 }
 scene.add(new THREE.HemisphereLight(0xb8d5f1,0x3b5363,2));
 const key=new THREE.DirectionalLight(0xffffff,3);
@@ -113,7 +120,13 @@ function updateTransform(msg){
     // Column 0 is torso-forward (+X), column 2 is torso-up (+Z).
     // MuJoCo's xmat is row-major, so extract each world-space column.
     torsoNormal.set(m[0],m[3],m[6]).normalize();
-    torsoUp.set(m[2],m[5],m[8]).normalize();
+    // Project the chest normal on the ground plane. As it approaches
+    // vertical during a fall, retain the last unambiguous yaw heading.
+    const horizontalLength=Math.hypot(torsoNormal.x,torsoNormal.y);
+    if(horizontalLength>TORSO_HEADING_MIN){
+      torsoHeading.set(torsoNormal.x/horizontalLength,
+        torsoNormal.y/horizontalLength,0);
+    }
   }
   const x=msg.transform;
   if(x.length!==meshes.length*12)return;
