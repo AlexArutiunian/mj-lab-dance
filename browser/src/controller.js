@@ -67,6 +67,23 @@ export async function step(runtime,preset,frame,state,limits,work){
   state.bad=low?state.bad+1:0;
   return state.bad>=Math.ceil(.5/DT);
 }
+/**
+ * Passive fall dynamics: remove all actuator torques and integrate contacts
+ * and gravity at the same 2 ms timestep as the controlled policy.
+ * The policy and PD controller are not evaluated after failure detection.
+ */
+export function passiveStep(runtime){
+  const {mj,data}=runtime;
+  data.ctrl.fill(0);
+  for(let sub=0;sub<10;sub++)mj.mj_step(runtime.model,data);
+  let maxVelocity=0;
+  for(let i=0;i<data.qvel.length;i++){
+    const v=data.qvel[i];
+    if(!Number.isFinite(v))throw new Error('Unstable MuJoCo passive dynamics');
+    maxVelocity=Math.max(maxVelocity,Math.abs(v));
+  }
+  return {maxVelocity, contacts:data.ncon};
+}
 export function scales(profile,R,refMax){
   const kappa=alphaRef/refMax;
   const state=Array.from(profile,(S)=>healthState(R,S,kappa));
