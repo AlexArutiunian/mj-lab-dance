@@ -8,14 +8,14 @@ page.on('requestfailed',q=>errors.push('network '+q.url()+' '+q.failure()?.error
 page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url());});
 try{
   await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded',timeout:30000});
-  await page.waitForFunction(()=>!document.querySelector('#play').disabled,{timeout:120000});
+  await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:120000});
   console.log('G1 model ready');
   for(const mode of ['short','full','clip10']){
     await page.locator('#motion').selectOption(mode);
     await page.locator('#repeats').fill('0');
     await page.locator('#play').click();
     await page.waitForFunction(()=>parseFloat(document.querySelector('#time').textContent)>0.1,
-      {timeout:120000});
+      null,{timeout:120000});
     console.log('HEALTHY',mode,await page.locator('#time').textContent());
     await page.locator('#reset').click();
     await page.waitForTimeout(300);
@@ -24,7 +24,7 @@ try{
   await page.locator('#repeats').fill('500000');
   await page.locator('#play').click();
   await page.waitForFunction(()=>parseFloat(document.querySelector('#time').textContent)>0.1 &&
-    parseFloat(document.querySelector('#health').textContent)<1,{timeout:180000});
+    parseFloat(document.querySelector('#health').textContent)<1,null,{timeout:180000});
   console.log('AGED short: time',await page.locator('#time').textContent(),
     'health',await page.locator('#health').textContent(),
     'torque',await page.locator('#torque').textContent());
