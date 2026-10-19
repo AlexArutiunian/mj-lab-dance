@@ -5,7 +5,16 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 370px;min-height:100vh}
 header{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:26px 30px;z-index:2;pointer-events:none}
 header strong{font-size:21px;letter-spacing:-.04em}header strong span{color:#5dcdb8}header small{color:#aec1d0;font-size:12px}
 #viewport{position:absolute;inset:0;touch-action:none}canvas{width:100%;height:100%;display:block}
-#stage-status{position:absolute;left:30px;top:88px;color:#a5baca;font-size:13px}
+#stage-status{position:absolute;left:30px;top:88px;color:#a5baca;font-size:13px;max-width:calc(100% - 225px)}
+.camera-mode{position:absolute;right:25px;top:84px;z-index:3;cursor:pointer;
+  padding:9px 13px;border:1px solid #547382;border-radius:7px;
+  background:rgba(17,30,43,.88);color:#e7eef5;font-size:12px;font-weight:650;
+  backdrop-filter:blur(8px);white-space:nowrap}
+.camera-mode:hover{border-color:#78bbaa;background:#233b47}
+.camera-mode:focus-visible{outline:2px solid #75d9c4;outline-offset:3px}
+.camera-mode[data-mode="follow"]{border-color:#599e97;color:#7ce6d1}
+@media(max-width:500px){.camera-mode{right:14px;top:74px;font-size:11px;padding:8px}
+  #stage-status{top:120px;max-width:calc(100% - 32px);font-size:12px}}
 footer{position:absolute;left:30px;right:30px;bottom:28px;display:flex;justify-content:space-between;font-size:15px;font-variant-numeric:tabular-nums;gap:10px}
 #verdict{color:#66d0bb}
 aside{padding:42px 28px;background:#19232e;border-left:1px solid #354657}
