@@ -23,7 +23,11 @@ try{
   await page.waitForFunction(() =>
     Number(document.querySelector('#viewport').dataset.cameraNormalAlignment)>.99999,
     null,{timeout:10000});
-  console.log('TORSO CAMERA: camera axis is perpendicular to the chest');
+  const cameraHorizontalZ=Number(await page.locator('#viewport').getAttribute('data-camera-horizontal-z'));
+  const cameraUp=Number(await page.locator('#viewport').getAttribute('data-camera-up-alignment'));
+  if(Math.abs(cameraHorizontalZ)>1e-6||cameraUp<.999999)
+    throw new Error('Torso camera must remain horizontal with upright horizon');
+  console.log('TORSO CAMERA: viewing direction parallel to floor, up aligned with gravity');
   await cameraMode.click();
   if(await cameraMode.getAttribute('data-mode')!=='free')
     throw new Error('Free orbit mode toggle failed');
