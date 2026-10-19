@@ -47,6 +47,3 @@
 - [ ] Отдельно оценивать physical RUL и functional RUL.
 - [ ] Добавить degradation-aware RL.
 
-## P3 — final RA-L experiments
-
-См. `article_RA-L/EXPERIMENTS_TODO.md`.

@@ -9,7 +9,6 @@ The repository combines:
 - per-joint load and degradation models;
 - actuator torque-capability degradation;
 - fall/survival evaluation;
-- an RA-L working draft.
 
 ## Current conclusion
 
@@ -134,7 +133,6 @@ physical lifetime prediction.
 ```text
 dance_sim/          deploy-matched playback tools and lightweight assets
 mvp_mujoco/         wear model, experiment runners and visualization
-article_RA-L/       working paper draft
 docs/               architecture, protocol, model and known issues
 patches/            local changes required in upstream unitree_rl_mjlab
 ```
