@@ -6,13 +6,51 @@ const $=name=>document.getElementById(name);
 const canvas=$('viewport');
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(42,1,0.02,200);
-camera.up.set(0,0,1);camera.position.set(2.5,-3.6,1.8);
+camera.up.set(0,0,1);camera.position.set(3.25,0,1.47);
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 canvas.appendChild(renderer.domElement);
 const controls=new OrbitControls(camera,renderer.domElement);
-controls.target.set(0,0,.88);controls.enableDamping=true;controls.update();
+controls.target.set(0,0,.75);controls.enableDamping=true;controls.update();
+// Follow camera stays oriented toward the robot's original front (+X in G1).
+// Only world position is tracked: it does not spin when the robot rotates or falls.
+let cameraMode='follow';
+const rootPosition=new THREE.Vector3(0,0,.8);
+const followTarget=new THREE.Vector3(0,0,.75);
+const targetGoal=new THREE.Vector3();
+const eyeGoal=new THREE.Vector3();
+const frontalOffset=new THREE.Vector3(3.25,0,.72);
+const cameraButton=$('camera-mode');
+const updateCameraButton=()=>{
+  const follow=cameraMode==='follow';
+  cameraButton.dataset.mode=cameraMode;
+  cameraButton.setAttribute('aria-pressed',String(follow));
+  cameraButton.textContent=follow?'Камера: спереди':'Камера: свободная';
+  cameraButton.title=follow?'Слежение спереди, нажмите для свободного обзора':
+    'Свободный обзор, нажмите для слежения спереди';
+};
+controls.enabled=false;
+updateCameraButton();
+cameraButton.addEventListener('click',()=>{
+  cameraMode=cameraMode==='follow'?'free':'follow';
+  controls.enabled=cameraMode==='free';
+  if(controls.enabled){
+    controls.target.copy(followTarget);
+    controls.update();
+  }
+  updateCameraButton();
+});
+function updateFollowCamera(dt){
+  // Height is clamped so a lying robot remains visible after the fall.
+  targetGoal.set(rootPosition.x,rootPosition.y,
+    THREE.MathUtils.clamp(rootPosition.z*.65+.18,.34,.86));
+  const factor=1-Math.exp(-6*Math.min(dt,.1));
+  followTarget.lerp(targetGoal,factor);
+  eyeGoal.copy(followTarget).add(frontalOffset);
+  camera.position.lerp(eyeGoal,factor);
+  camera.lookAt(followTarget);
+}
 scene.add(new THREE.HemisphereLight(0xb8d5f1,0x3b5363,2));
 const key=new THREE.DirectionalLight(0xffffff,3);
 key.position.set(3,-4,7);scene.add(key);
@@ -29,6 +67,9 @@ function resize(){
 }
 const observer=new ResizeObserver(resize);observer.observe(canvas);resize();
 function updateTransform(msg){
+  if(msg.root?.length===3&&msg.root.every(Number.isFinite)){
+    rootPosition.set(...msg.root);
+  }
   const x=msg.transform;
   if(x.length!==meshes.length*12)return;
   for(let i=0;i<meshes.length;i++){
@@ -139,7 +180,8 @@ $('motion').addEventListener('change',()=>{
 function animate(now){
   requestAnimationFrame(animate);
   const elapsed=Math.min(.1,(now-lastTime)/1000);lastTime=now;
-  controls.update();
+  if(cameraMode==='follow')updateFollowCamera(elapsed);
+  else controls.update();
   if(playing){accumulator+=elapsed; if(accumulator>=.02){accumulator-=.02;worker.postMessage({type:'tick'})}}
   renderer.render(scene,camera);
 }
