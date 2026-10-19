@@ -1,24 +1,76 @@
-# WearBench-G1 Browser Demo
+# WearBench-G1: браузерный инференс ONNX и моделирование MuJoCo
 
-Experimental browser runtime for the three exported Unitree G1 ONNX mimic policies.
+Экспериментальное веб-приложение для трёх оригинальных политик движения Unitree G1.
 
-The browser build is separate from the native MuJoCo research benchmarks.
-It requires ONNX Runtime Web, the official MuJoCo WASM bindings and a compatible G1 scene.
+## Архитектура
 
-## Policy presets
+Браузерное приложение использует официальный `@mujoco/mujoco` 3.12.0 (WebAssembly), `onnxruntime-web` и Three.js. ONNX-политика вычисляет действие на основе текущего физического состояния робота; PD-контроллер передаёт ограниченные моменты в MuJoCo, а Three.js показывает состояние модели. Предварительно записанные анимации не используются вместо политики.
 
-- short: 16.24 s mimic policy
-- full: 131.48 s mimic policy
-- clip10: 10 s mimic policy
+Приложение поддерживает три варианта: короткий танец 16,24 с, полный танец 131,48 с и 10-секундный фрагмент. Для каждого загружаются собственные ONNX, `policy.onnx.data`, `deploy.yaml` и эталонная траектория `.npz`, экспортированная в сжатый JSON.
 
-Policy output alone is insufficient to predict falls. Closed-loop physics, reference motions,
-PD actuator control and damage parameters are required. The browser variant must be
-validated against the native implementation before its outcomes are reported as results.
+## Управление
 
-## Scope
+- Движение: выбор одной из трёх политик
+- `R`: число условных завершённых повторений для модели ускоренной деградации
+- Запустить / Пауза / Продолжить
+- Сброс: возвращает здоровое состояние (`R=0`) и начальную позу
 
-The intended controls are motion selection, completed repetitions, start/pause and reset.
-The accumulated wear coordinate is uncalibrated; it is not the robot's physical life.
+Показываются условное здоровье наиболее ослабленного сустава `h`, относительный предел доступного момента `u`, время и результат текущего прогона.
 
-Source assets remain in the root project's dance_sim/assets/policies/mimic/ directory.
-The journal manuscript is maintained on publication/ieee-ra-l.
+## Закон деградации
+
+Для каждой политики сначала выполняется здоровый прогон с вычислением `S[j]=integral(abs(tau[j]*qdot[j])dt)`. Общий коэффициент `kappa` задаётся по эталонному короткому танцу. Формулы:
+
+```text
+alpha_ref = (1 - ((0.30 - 0.10) / 0.90) ** (1 / 1.5)) / 1_000_000
+kappa     = alpha_ref / max(S_reference)
+D[j]      = R * kappa * S[j]
+h[j]      = clip(1 - D[j], 0, 1)
+u[j]      = 0.10 + 0.90 * h[j] ** 1.5
+```
+
+При первом `R>0` вычисляется здоровый профиль. Для длинного танца это может занимать заметное время. Браузерные базовые профили и результаты **не являются численно квалифицированной заменой** измерений native MuJoCo, поскольку веб-модель и версия движка отличаются.
+
+Критерий падения: высота `pelvis<0.45 m` и `torso_link<0.55 m` одновременно в течение не менее `0.5 s`. Это не реальный физический ресурс G1.
+
+## Локальная сборка
+
+Требуются Node.js 22, Python с `numpy`, `pyyaml` и папка `model` с лицензированными облегченными моделями из [qwen-unitree-action-dataset-preview](https://github.com/AlexArutiunian/qwen-unitree-action-dataset-preview/tree/main/web/public/model).
+
+```bash
+git clone -b feature/browser-wearbench \
+  https://github.com/AlexArutiunian/mj-lab-dance.git
+cd mj-lab-dance
+python3 -m pip install numpy pyyaml
+python3 browser/scripts/prepare_assets.py \
+  --model-source /path/to/qwen-unitree-action-dataset-preview/web/public/model
+cd browser
+npm install
+npm test
+mkdir -p public/ort
+cp node_modules/onnxruntime-web/dist/ort-wasm*.wasm public/ort/
+cp node_modules/onnxruntime-web/dist/ort-wasm*.mjs public/ort/
+npm run dev
+```
+
+Затем открыть локальный адрес, показанный Vite. Изменения в корне проекта или установка MuJoCo на сервере не требуются.
+
+## Публикация GitHub Pages
+
+Workflow `.github/workflows/browser-wearbench.yml` устанавливает зависимости, экспортирует артефакты политик, собирает проект и развёртывает `browser/dist`. В настройках Pages необходимо выбрать источник **GitHub Actions**. URL после успешной публикации:
+
+```text
+https://alexarutiunian.github.io/mj-lab-dance/
+```
+
+Если Pages не включён, сборка может завершиться без опубликованного сайта. Для проверки использовать журнал выполнения GitHub Actions.
+
+## Ограничения проверки
+
+1. Исходные политики не переобучаются, но браузерное воспроизведение обязано пройти проверку на реальных браузерах.
+2. Для научного сравнения необходимо сопоставление `obs`, `actions`, `qpos`, `qvel`, `ctrl`, `contacts` с исходным native MuJoCo.
+3. Текущий веб-G1 использует публичные оптимизированные меши, а не точную копию эталонной `scene_g1.xml`.
+4. Результаты браузерного прогона не следует включать в RA-L до подтверждения физической эквивалентности.
+5. В основе модели находится условный ускоренный коэффициент, а не экспериментально откалиброванная долговечность приводов.
+
+Статья RA-L хранится отдельно в ветке `publication/ieee-ra-l`. В `main` остаются основной симулятор и данные экспериментов.
