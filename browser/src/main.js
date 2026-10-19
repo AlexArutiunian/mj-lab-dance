@@ -50,6 +50,8 @@ function updateFollowCamera(dt){
   eyeGoal.copy(followTarget).add(frontalOffset);
   camera.position.lerp(eyeGoal,factor);
   camera.lookAt(followTarget);
+  canvas.dataset.cameraTargetZ=followTarget.z.toFixed(4);
+  canvas.dataset.cameraTargetX=followTarget.x.toFixed(4);
 }
 scene.add(new THREE.HemisphereLight(0xb8d5f1,0x3b5363,2));
 const key=new THREE.DirectionalLight(0xffffff,3);
