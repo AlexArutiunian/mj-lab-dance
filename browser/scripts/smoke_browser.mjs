@@ -83,8 +83,11 @@ try{
   const aligned=Number(await page.locator('#viewport').getAttribute('data-camera-normal-alignment'));
   const lyingTorsoNormalZ=Number(await page.locator('#viewport').getAttribute('data-camera-torso-normal-z'));
   const lyingTorsoTargetZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
-  if(!Number.isFinite(aligned)||aligned<.99999)
-    throw new Error('Torso camera lost perpendicular alignment: '+aligned);
+  const fallingHorizontalZ=Number(await page.locator('#viewport').getAttribute('data-camera-horizontal-z'));
+  const fallingUp=Number(await page.locator('#viewport').getAttribute('data-camera-up-alignment'));
+  if(!Number.isFinite(aligned)||aligned<.99999||
+      !Number.isFinite(fallingHorizontalZ)||Math.abs(fallingHorizontalZ)>1e-6||fallingUp<.999999)
+    throw new Error('Torso camera tilted while the robot was falling');
   if(!Number.isFinite(lyingTorsoTargetZ)||lyingTorsoTargetZ>=standingTorsoTargetZ-.12)
     throw new Error('Torso camera did not follow the actual falling body');
   if(!Number.isFinite(lyingTorsoNormalZ)||Math.abs(lyingTorsoNormalZ-standingTorsoNormalZ)<.05)
