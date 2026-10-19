@@ -10,6 +10,20 @@ try{
   await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded',timeout:30000});
   await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:120000});
   console.log('G1 model ready');
+  // Follow mode is the default, with a front-facing camera and free-orbit toggle.
+  const cameraMode=page.locator('#camera-mode');
+  await page.waitForFunction(()=>Number.isFinite(
+    Number(document.querySelector('#viewport').dataset.cameraTargetZ)),null,{timeout:10000});
+  if(await cameraMode.getAttribute('data-mode')!=='follow')
+    throw new Error('Expected follow camera mode on load');
+  const initialLookZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
+  await cameraMode.click();
+  if(await cameraMode.getAttribute('data-mode')!=='free')
+    throw new Error('Free orbit mode toggle failed');
+  await cameraMode.click();
+  if(await cameraMode.getAttribute('data-mode')!=='follow')
+    throw new Error('Follow camera mode toggle failed');
+  console.log('FRONT FOLLOW CAMERA: initial target Z',initialLookZ.toFixed(3));
   for(const mode of ['short','full','clip10']){
     await page.locator('#motion').selectOption(mode);
     await page.locator('#repeats').fill('0');
@@ -47,6 +61,12 @@ try{
   const afterFallTime=Number.parseFloat(await page.locator('#time').textContent());
   if(afterFallTime-fallTime<1.0)throw new Error('Passive MuJoCo did not advance after falling');
   console.log('PASSIVE FALL: simulation continued',Number(afterFallTime-fallTime).toFixed(2),'s');
+  // The camera must track the fallen robot instead of remaining at standing height.
+  await page.waitForTimeout(350);
+  const lyingLookZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
+  if(!Number.isFinite(lyingLookZ)||lyingLookZ>initialLookZ-.06)
+    throw new Error('Follow camera did not lower its target after the robot fell: '+lyingLookZ);
+  console.log('FRONT FOLLOW CAMERA: target lowered from',initialLookZ.toFixed(3),'to',lyingLookZ.toFixed(3));
   const finalTime=await page.locator('#time').textContent();
   await page.waitForTimeout(700);
   if(await page.locator('#time').textContent()!==finalTime)
