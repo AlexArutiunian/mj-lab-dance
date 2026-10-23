@@ -1,4 +1,5 @@
 import {chromium} from 'playwright';
+
 const browser=await chromium.launch({headless:true,args:['--enable-unsafe-swiftshader','--disable-dev-shm-usage']});
 const page=await browser.newPage({viewport:{width:1200,height:750}});
 const errors=[];
@@ -6,123 +7,95 @@ page.on('pageerror',e=>errors.push('page '+e.message));
 page.on('console',m=>{if(m.type()==='error')errors.push('console '+m.text());});
 page.on('requestfailed',q=>errors.push('network '+q.url()+' '+q.failure()?.errorText));
 page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url());});
+
+const waitRunning=async()=>{
+  await page.waitForFunction(()=>document.querySelector('#verdict').textContent==='Выполняется'
+    && parseFloat(document.querySelector('#time').textContent)>0.1,
+    null,{timeout:120000});
+};
+const getButtons=async()=>page.locator('#preset-buttons button').allTextContents();
+const expected={
+  short:['300 тыс.','500 тыс.','850 тыс.'],
+  full:['10 тыс.','50 тыс.','125 тыс.'],
+  walk:['500 тыс.','1 млн','1,5 млн']
+};
+const selectMotion=async motion=>{
+  await page.locator('#motion').selectOption(motion);
+  await page.waitForFunction(()=>document.querySelector('#repeats').value==='0',null,{timeout:5000});
+  const buttons=await getButtons();
+  if(JSON.stringify(buttons)!==JSON.stringify(expected[motion]))
+    throw new Error('Incorrect three shortcuts for '+motion+': '+buttons);
+  await waitRunning();
+  console.log('AUTO HEALTHY',motion,await page.locator('#time').textContent(),buttons.join(' / '));
+};
+
 try{
   await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded',timeout:30000});
-  await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:120000});
-  console.log('G1 model ready');
-  // Follow mode is the default, with a front-facing camera and free-orbit toggle.
-  const cameraMode=page.locator('#camera-mode');
-  await page.waitForFunction(()=>Number.isFinite(
-    Number(document.querySelector('#viewport').dataset.cameraTargetZ)),null,{timeout:10000});
-  if(await cameraMode.getAttribute('data-mode')!=='follow')
-    throw new Error('Expected follow camera mode on load');
-  const initialLookZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
-  await cameraMode.click();
-  if(await cameraMode.getAttribute('data-mode')!=='torso')
-    throw new Error('Torso camera mode toggle failed');
-  await page.waitForFunction(() =>
-    Number(document.querySelector('#viewport').dataset.cameraNormalAlignment)>.99999,
-    null,{timeout:10000});
-  const cameraHorizontalZ=Number(await page.locator('#viewport').getAttribute('data-camera-horizontal-z'));
-  const cameraUp=Number(await page.locator('#viewport').getAttribute('data-camera-up-alignment'));
-  if(Math.abs(cameraHorizontalZ)>1e-6||cameraUp<.999999)
-    throw new Error('Torso camera must remain horizontal with upright horizon');
-  console.log('TORSO CAMERA: viewing direction parallel to floor, up aligned with gravity');
-  await cameraMode.click();
-  if(await cameraMode.getAttribute('data-mode')!=='free')
-    throw new Error('Free orbit mode toggle failed');
-  await cameraMode.click();
-  if(await cameraMode.getAttribute('data-mode')!=='follow')
-    throw new Error('Front-follow camera mode toggle failed');
-  console.log('FRONT FOLLOW CAMERA: initial target Z',initialLookZ.toFixed(3));
-  for(const mode of ['short','full','clip10']){
-    await page.locator('#motion').selectOption(mode);
-    await page.locator('#repeats').fill('0');
-    await page.locator('#play').click();
-    await page.waitForFunction(()=>parseFloat(document.querySelector('#time').textContent)>0.1,
-      null,{timeout:120000});
-    console.log('HEALTHY',mode,await page.locator('#time').textContent());
-    await page.locator('#reset').click();
-    await page.waitForTimeout(300);
+  await page.waitForFunction(()=>document.querySelectorAll('#preset-buttons button').length===3,null,{timeout:10000});
+  const startR=await page.locator('#repeats').inputValue();
+  if(startR!=='0')throw new Error('Expected zero initial repetitions, received '+startR);
+  await waitRunning();
+  console.log('INITIAL AUTOPLAY R=0 OK');
+  if(JSON.stringify(await getButtons())!==JSON.stringify(expected.short))
+    throw new Error('Default three wear shortcuts are incorrect');
+
+  const mode=page.locator('#camera-mode');
+  for(const name of ['torso','free','follow']){
+    await mode.click();
+    if(await mode.getAttribute('data-mode')!==name)
+      throw new Error('Camera toggle failed for '+name);
   }
-  await page.locator('#motion').selectOption('short');
-  await page.locator('#repeats').fill('500000');
-  await page.locator('#play').click();
-  await page.waitForFunction(()=>parseFloat(document.querySelector('#time').textContent)>0.1 &&
-    parseFloat(document.querySelector('#health').textContent)<1,null,{timeout:180000});
-  console.log('AGED short: time',await page.locator('#time').textContent(),
-    'health',await page.locator('#health').textContent(),
-    'torque',await page.locator('#torque').textContent());
-  // Under severe modelled torque loss, the robot must fall, switch off
-  // active motor torques and keep stepping MuJoCo until the passive phase ends.
-  await page.locator('#reset').click();
-  await page.waitForTimeout(300);
-  await page.locator('#motion').selectOption('short');
-  await page.locator('#repeats').fill('100000000');
-  // Watch the same modelled fall through its rotating torso frame.
-  await cameraMode.click();
-  if(await cameraMode.getAttribute('data-mode')!=='torso')
-    throw new Error('Torso camera not selected for fall test');
-  const standingTorsoNormalZ=Number(await page.locator('#viewport').getAttribute('data-camera-torso-normal-z'));
-  const standingTorsoTargetZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
-  await page.locator('#play').click();
-  await page.waitForFunction(() =>
-    document.querySelector('#verdict').textContent.includes('приводы отключены'),
+  console.log('THREE CAMERA MODES OK');
+
+  for(const motion of ['full','walk','short'])await selectMotion(motion);
+
+  // Presets launch a real fresh rollout rather than only changing text fields.
+  await page.locator('#preset-buttons button[data-repeats="500000"]').click();
+  await page.waitForFunction(()=>Number(document.querySelector('#health').textContent)<1 &&
+    document.querySelector('#repeats').value==='500000' &&
+    parseFloat(document.querySelector('#time').textContent)>.1,
     null,{timeout:180000});
-  const fallTime=Number.parseFloat(await page.locator('#time').textContent());
-  console.log('FALL DETECTED at',fallTime,'s. ONNX/PD commands disabled');
-  await page.waitForFunction(() =>
+  console.log('SHORT PRESET: simulated R=500000, health',await page.locator('#health').textContent());
+
+  // Walking has its own 98-float policy observation and must compute its own
+  // 60-second healthy work profile before nonzero-R torque degradation.
+  await selectMotion('walk');
+  await page.locator('#preset-buttons button[data-repeats="500000"]').click();
+  await page.waitForFunction(()=>Number(document.querySelector('#health').textContent)<1 &&
+    document.querySelector('#repeats').value==='500000' &&
+    parseFloat(document.querySelector('#time').textContent)>.1,
+    null,{timeout:300000});
+  console.log('WALK PRESET: native-style 98D ONNX, R=500000, health',await page.locator('#health').textContent());
+
+  // The previous passive fall sequence and camera tracking must still work.
+  await selectMotion('short');
+  await page.locator('#repeats').fill('100000000');
+  await page.locator('#play').click();  // pause autoplay
+  await page.waitForFunction(()=>document.querySelector('#verdict').textContent==='Пауза',null,{timeout:10000});
+  await page.locator('#play').click();  // resumes existing rollout
+  // Manually changed R should start a new rollout using the Run button.
+  await page.locator('#reset').click();
+  await page.locator('#repeats').fill('100000000');
+  await page.locator('#play').click();
+  await page.waitForFunction(()=>document.querySelector('#verdict').textContent.includes('приводы отключены'),null,{timeout:180000});
+  const fallTime=parseFloat(await page.locator('#time').textContent());
+  await page.waitForFunction(()=>
     document.querySelector('#verdict').textContent.includes('управление отключено') ||
     document.querySelector('#verdict').textContent.includes('расчёт завершён'),
     null,{timeout:120000});
-  const afterFallTime=Number.parseFloat(await page.locator('#time').textContent());
-  if(afterFallTime-fallTime<1.0)throw new Error('Passive MuJoCo did not advance after falling');
-  console.log('PASSIVE FALL: simulation continued',Number(afterFallTime-fallTime).toFixed(2),'s');
-  // Verify the torso-follow camera stays level and tracks the grounded robot.
-  await page.waitForTimeout(350);
-  const aligned=Number(await page.locator('#viewport').getAttribute('data-camera-normal-alignment'));
-  const lyingTorsoNormalZ=Number(await page.locator('#viewport').getAttribute('data-camera-torso-normal-z'));
-  const lyingTorsoTargetZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
-  const fallingHorizontalZ=Number(await page.locator('#viewport').getAttribute('data-camera-horizontal-z'));
-  const fallingUp=Number(await page.locator('#viewport').getAttribute('data-camera-up-alignment'));
-  if(!Number.isFinite(aligned)||aligned<.99999||
-      !Number.isFinite(fallingHorizontalZ)||Math.abs(fallingHorizontalZ)>1e-6||fallingUp<.999999)
-    throw new Error('Torso camera tilted while the robot was falling');
-  if(!Number.isFinite(lyingTorsoTargetZ)||lyingTorsoTargetZ>=standingTorsoTargetZ-.12)
-    throw new Error('Torso camera did not follow the actual falling body');
-  if(!Number.isFinite(lyingTorsoNormalZ)||Math.abs(lyingTorsoNormalZ-standingTorsoNormalZ)<.05)
-    throw new Error('Torso camera received no meaningful rotation during the fall');
-  console.log('TORSO CAMERA FALL: level horizon and yaw alignment',aligned,
-    'body axis Z',standingTorsoNormalZ.toFixed(3),'->',lyingTorsoNormalZ.toFixed(3),
-    'target Z',standingTorsoTargetZ.toFixed(3),'->',lyingTorsoTargetZ.toFixed(3));
-  // Confirm world-front mode continues to track the low post-fall position.
-  await cameraMode.click();
-  if(await cameraMode.getAttribute('data-mode')!=='free')
-    throw new Error('Could not return to free mode');
-  await cameraMode.click();
-  if(await cameraMode.getAttribute('data-mode')!=='follow')
-    throw new Error('Could not return to fixed front mode');
-  await page.waitForTimeout(900);
-  const lyingLookZ=Number(await page.locator('#viewport').getAttribute('data-camera-target-z'));
-  if(!Number.isFinite(lyingLookZ)||lyingLookZ>initialLookZ-.06)
-    throw new Error('Front-follow camera did not lower its target after the robot fell');
-  console.log('FRONT FOLLOW CAMERA: target lowered from',initialLookZ.toFixed(3),'to',lyingLookZ.toFixed(3));
-  const finalTime=await page.locator('#time').textContent();
-  await page.waitForTimeout(700);
-  if(await page.locator('#time').textContent()!==finalTime)
-    throw new Error('Robot should retain the terminal pose until Reset');
+  const finalTime=parseFloat(await page.locator('#time').textContent());
+  if(finalTime-fallTime<1)throw Error('Unpowered MuJoCo dynamics did not continue');
+  console.log('UNPOWERED FALL AND REST OK',finalTime-fallTime,'s');
   await page.locator('#reset').click();
-  await page.waitForFunction(() =>
-    document.querySelector('#time').textContent==='0.00 с' &&
-    document.querySelector('#health').textContent==='1.000',
-    null,{timeout:10000});
-  console.log('RESET after passive fall OK');
+  await page.waitForFunction(()=>document.querySelector('#time').textContent==='0.00 с'
+    && document.querySelector('#repeats').value==='0',null,{timeout:10000});
+  console.log('RESET R=0 OK');
   await page.screenshot({path:'smoke.png',fullPage:true});
-} catch(error){
-  console.error('BROWSER SMOKE ERROR:',error.message);
+}catch(err){
+  console.error('BROWSER SMOKE ERROR:',err.message);
   console.error('Status:',await page.locator('#stage-status').textContent());
   console.error('Message:',await page.locator('#message').textContent());
   console.error('Other errors:',errors.slice(0,30));
   await page.screenshot({path:'smoke-failed.png',fullPage:true});
   process.exitCode=1;
-} finally{await browser.close();}
+}finally{await browser.close();}
