@@ -102,6 +102,7 @@ const platform=new THREE.Mesh(new THREE.PlaneGeometry(100,100),
   new THREE.MeshStandardMaterial({color:0x192938,roughness:1}));
 platform.position.z=-.019;scene.add(platform);
 let meshes=[],lastTime=performance.now(),accumulator=0,enabled=false,playing=false,workerReady=false;
+let activeMotion='short',activeRepetitions=0;
 const presetValues={
   short:[[300000,'300 тыс.'],[500000,'500 тыс.'],[850000,'850 тыс.']],
   full:[[10000,'10 тыс.'],[50000,'50 тыс.'],[125000,'125 тыс.']],
@@ -120,6 +121,8 @@ function startRun(){
     $('message').textContent='R должно быть целым числом от 0 до 100 млн';
     return;
   }
+  activeMotion=$('motion').value;
+  activeRepetitions=R;
   playing=false;
   accumulator=0;
   $('play').textContent='Запустить';
@@ -147,7 +150,12 @@ function populatePresets(){
   syncPresetSelection();
 }
 populatePresets();
-$('repeats').addEventListener('input',syncPresetSelection);
+$('repeats').addEventListener('input',()=>{
+  syncPresetSelection();
+  if(workerReady&&Number($('repeats').value)!==activeRepetitions){
+    $('play').textContent='Запустить';
+  }
+});
 const matrix=new THREE.Matrix4();
 function resize(){
   const width=Math.max(100,canvas.clientWidth),height=Math.max(100,canvas.clientHeight);
@@ -268,6 +276,10 @@ worker.onerror=event=>{
 };
 $('play').addEventListener('click',()=>{
   if(!workerReady||!enabled)return;
+  if(Number($('repeats').value)!==activeRepetitions||$('motion').value!==activeMotion){
+    startRun();
+    return;
+  }
   if(playing||$('play').textContent==='Продолжить'){
     worker.postMessage({type:'pause'});
     return;
