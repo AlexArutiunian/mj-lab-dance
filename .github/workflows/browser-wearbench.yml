@@ -23,13 +23,18 @@ jobs:
           repository: AlexArutiunian/qwen-unitree-action-dataset-preview
           path: _web_model_source
           ref: main
+      - uses: actions/checkout@v4
+        with:
+          repository: unitreerobotics/unitree_rl_mjlab
+          path: _walking_source
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Python motion dependencies
         run: python -m pip install numpy pyyaml
-      - name: Export the three committed motions and policies
-        run: python browser/scripts/prepare_assets.py --model-source _web_model_source/web/public/model
+      - name: Export original dance and walking policies
+        run: python browser/scripts/prepare_assets.py --model-source _web_model_source/web/public/model --walking-source _walking_source
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
