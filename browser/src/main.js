@@ -102,6 +102,52 @@ const platform=new THREE.Mesh(new THREE.PlaneGeometry(100,100),
   new THREE.MeshStandardMaterial({color:0x192938,roughness:1}));
 platform.position.z=-.019;scene.add(platform);
 let meshes=[],lastTime=performance.now(),accumulator=0,enabled=false,playing=false,workerReady=false;
+const presetValues={
+  short:[[300000,'300 тыс.'],[500000,'500 тыс.'],[850000,'850 тыс.']],
+  full:[[10000,'10 тыс.'],[50000,'50 тыс.'],[125000,'125 тыс.']],
+  walk:[[500000,'500 тыс.'],[1000000,'1 млн'],[1500000,'1,5 млн']]
+};
+function syncPresetSelection(){
+  const chosen=Number($('repeats').value);
+  document.querySelectorAll('#preset-buttons button').forEach(b=>{
+    b.setAttribute('aria-pressed',String(Number(b.dataset.repeats)===chosen));
+  });
+}
+function startRun(){
+  if(!workerReady||!enabled)return;
+  const R=Number($('repeats').value);
+  if(!Number.isSafeInteger(R)||R<0||R>100000000){
+    $('message').textContent='R должно быть целым числом от 0 до 100 млн';
+    return;
+  }
+  playing=false;
+  accumulator=0;
+  $('play').textContent='Запустить';
+  $('play').disabled=true;
+  $('verdict').textContent='Подготовка прогона';
+  worker.postMessage({type:'start',motion:$('motion').value,repetitions:R});
+}
+function populatePresets(){
+  const mode=$('motion').value,root=$('preset-buttons');
+  root.replaceChildren();
+  for(const [value,label] of presetValues[mode]){
+    const btn=document.createElement('button');
+    btn.type='button';
+    btn.textContent=label;
+    btn.dataset.repeats=String(value);
+    btn.title=value.toLocaleString('ru-RU')+' условных повторений';
+    btn.setAttribute('aria-pressed','false');
+    btn.addEventListener('click',()=>{
+      $('repeats').value=String(value);
+      syncPresetSelection();
+      startRun();
+    });
+    root.append(btn);
+  }
+  syncPresetSelection();
+}
+populatePresets();
+$('repeats').addEventListener('input',syncPresetSelection);
 const matrix=new THREE.Matrix4();
 function resize(){
   const width=Math.max(100,canvas.clientWidth),height=Math.max(100,canvas.clientHeight);
@@ -163,6 +209,10 @@ worker.onmessage=({data:m})=>{
     addGeometry(m.geoms);enabled=true;workerReady=true;
     $('play').disabled=false;$('reset').disabled=false;
     $('stage-status').textContent='Модель G1 готова';
+    // Opening the demo immediately starts the healthy (R=0) selected policy.
+    $('repeats').value='0';
+    syncPresetSelection();
+    startRun();
   }
   if(m.type==='pose')updateTransform(m);
   if(m.type==='metrics'){
@@ -218,22 +268,25 @@ worker.onerror=event=>{
 };
 $('play').addEventListener('click',()=>{
   if(!workerReady||!enabled)return;
-  if(playing){worker.postMessage({type:'pause'});return}
-  if($('play').textContent==='Продолжить'){
-    worker.postMessage({type:'pause'});return;
+  if(playing||$('play').textContent==='Продолжить'){
+    worker.postMessage({type:'pause'});
+    return;
   }
-  const R=Number($('repeats').value);
-  if(!Number.isSafeInteger(R)||R<0){$('message').textContent='R должно быть целым числом от 0';return}
-  $('play').disabled=true;$('verdict').textContent='Подготовка прогона';
-  worker.postMessage({type:'start',motion:$('motion').value,repetitions:R});
+  startRun();
 });
 $('reset').addEventListener('click',()=>{
-  $('repeats').value='0';$('play').disabled=false;
+  playing=false;
+  accumulator=0;
+  $('repeats').value='0';
+  syncPresetSelection();
+  $('play').disabled=false;
   worker.postMessage({type:'reset'});
 });
 $('motion').addEventListener('change',()=>{
-  playing=false;$('play').textContent='Запустить';
-  worker.postMessage({type:'reset'});
+  $('repeats').value='0';
+  populatePresets();
+  // A new policy starts in the healthy state without another user action.
+  startRun();
 });
 function animate(now){
   requestAnimationFrame(animate);
