@@ -29,11 +29,11 @@ async function calculate(name,id){
   const p=await preset(name);
   const state=reset(world,p),work=new Float64Array(29);
   notify('Расчёт базового профиля нагрузки: '+name);
-  for(let i=0;i<p.motion.count;i++){
+  for(let i=0;i<p.frames;i++){
     if(id!==token)return null;
     await step(world,p,i,state,null,work);
     if(i%100===0){
-      notify('Профиль '+name+': '+Math.round((i+1)/p.motion.count*100)+'%');
+      notify('Профиль '+name+': '+Math.round((i+1)/p.frames*100)+'%');
       await microtask();
     }
   }
@@ -46,7 +46,7 @@ async function start(msg){
   const id=++token;
   running=false;busy=false;current=null;
   const name=msg.motion,R=msg.repetitions;
-  if(!['short','full','clip10'].includes(name)||!Number.isSafeInteger(R)||R<0)
+  if(!['short','full','walk'].includes(name)||!Number.isSafeInteger(R)||R<0)
     throw Error('Некорректные параметры');
   selected=name;
   const p=await preset(name);
@@ -75,7 +75,7 @@ async function tick(){
   try{
     const c=current;
     if(c.phase==='policy'){
-      if(c.frame>=c.p.motion.count){
+      if(c.frame>=c.p.frames){
         running=false;
         postMessage({type:'finish',failed:false});
         return;
@@ -92,7 +92,7 @@ async function tick(){
         notify('Падение зафиксировано. Моменты приводов обнулены, расчёт продолжается без управления');
       }
       world.pose(c.frame*0.02,c.failed);
-      if(!c.failed&&c.frame>=c.p.motion.count){
+      if(!c.failed&&c.frame>=c.p.frames){
         running=false;
         postMessage({type:'finish',failed:false});
       }
