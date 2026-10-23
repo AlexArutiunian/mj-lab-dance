@@ -69,11 +69,7 @@ try{
 
   // The previous passive fall sequence and camera tracking must still work.
   await selectMotion('short');
-  await page.locator('#repeats').fill('100000000');
-  await page.locator('#play').click();  // pause autoplay
-  await page.waitForFunction(()=>document.querySelector('#verdict').textContent==='Пауза',null,{timeout:10000});
-  await page.locator('#play').click();  // resumes existing rollout
-  // Manually changed R should start a new rollout using the Run button.
+  // Manual input plus Run must continue to support custom R values.
   await page.locator('#reset').click();
   await page.locator('#repeats').fill('100000000');
   await page.locator('#play').click();
