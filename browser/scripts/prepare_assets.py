@@ -20,6 +20,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--model-source", type=Path, required=True,
                    help="Existing licensed web model directory containing manifest.json")
+    p.add_argument("--walking-source", type=Path, required=True,
+                   help="Official unitree_rl_mjlab checkout containing the G1 velocity policy")
     p.add_argument("--output", type=Path, default=REPO / "browser/public")
     args = p.parse_args()
     source = args.model_source.resolve()
@@ -53,6 +55,18 @@ def main():
         with gzip.open(target / "motion.json.gz", "wt", encoding="utf-8", compresslevel=8) as f:
             json.dump(payload, f, separators=(",", ":"))
         print(label, "frames", len(q), "ONNX", (target / "policy.onnx.data").stat().st_size)
+    walking = args.walking_source.resolve() / "deploy/robots/g1/config/policy/velocity/v0"
+    walk_target = args.output / "policies" / "walk"
+    walk_target.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(walking / "exported/policy.onnx", walk_target / "policy.onnx")
+    walk_config = yaml.safe_load((walking / "params/deploy.yaml").read_text())
+    if (len(walk_config["default_joint_pos"]) != 29
+            or abs(walk_config["step_dt"] - 0.02) > 1e-12
+            or len(walk_config["actions"]["JointPositionAction"]["scale"]) != 29):
+        raise ValueError("Unexpected official Unitree G1 velocity deploy config")
+    (walk_target / "deploy.json").write_text(json.dumps(walk_config, separators=(",", ":")))
+    print("walk", "frames", int(60 / walk_config["step_dt"]),
+          "ONNX", (walk_target / "policy.onnx").stat().st_size)
     print("Prepared browser assets in", args.output)
 
 if __name__ == "__main__":
