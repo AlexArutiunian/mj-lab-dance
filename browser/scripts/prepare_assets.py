@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 import numpy as np
 import yaml
+from export_js_policy import export_policy
 
 REPO = Path(__file__).resolve().parents[2]
 MIMIC = REPO / "dance_sim/assets/policies/mimic"
@@ -38,6 +39,7 @@ def main():
         target.mkdir(parents=True, exist_ok=True)
         for asset in ("policy.onnx", "policy.onnx.data"):
             shutil.copy2(folder / "exported" / asset, target / asset)
+        export_policy(target / "policy.onnx")
         config = yaml.safe_load((folder / "params/deploy.yaml").read_text())
         if len(config["default_joint_pos"]) != 29 or abs(config["step_dt"] - 0.02) > 1e-12:
             raise ValueError("Incorrect deploy config " + name)
@@ -59,6 +61,7 @@ def main():
     walk_target = args.output / "policies" / "walk"
     walk_target.mkdir(parents=True, exist_ok=True)
     shutil.copy2(walking / "exported/policy.onnx", walk_target / "policy.onnx")
+    export_policy(walk_target / "policy.onnx")
     walk_config = yaml.safe_load((walking / "params/deploy.yaml").read_text())
     if (len(walk_config["default_joint_pos"]) != 29
             or abs(walk_config["step_dt"] - 0.02) > 1e-12
