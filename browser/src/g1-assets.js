@@ -7,7 +7,7 @@ async function fetchModelBundle(base,report){
   const metadataResponse=await fetch(new URL('asset-bundle.json',root),{cache:'no-cache'});
   if(!metadataResponse.ok)throw Error('G1 bundle manifest: HTTP '+metadataResponse.status);
   const info=await metadataResponse.json();
-  if(!/^g1-assets-[a-f0-9]{16}\\.tar\\.gz$/.test(info.archive)||
+  if(!/^g1-assets-[a-f0-9]{16}[.]tar[.]gz$/.test(info.archive)||
       !Array.isArray(info.files)||!info.files.includes('g1.xml'))
     throw Error('Invalid G1 asset-bundle.json');
   const url=new URL(info.archive,root);
