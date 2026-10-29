@@ -62,7 +62,7 @@ def main():
                         archive.addfile(info, handle)
 
     digest = hashlib.sha256(temp_archive.read_bytes()).hexdigest()[:16]
-    archive_name = f"g1-assets-{digest}.tar.gz"
+    archive_name = f"g1-assets-{digest}.bin"
     temp_archive.rename(dest / archive_name)
     (dest / "asset-bundle.json").write_text(json.dumps({
         "archive": archive_name, "files": files, "sha256_prefix": digest
