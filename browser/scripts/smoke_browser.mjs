@@ -86,6 +86,16 @@ try{
   await page.waitForFunction(()=>document.querySelector('#time').textContent==='0.00 с'
     && document.querySelector('#repeats').value==='0',null,{timeout:10000});
   console.log('RESET R=0 OK');
+  // Force the iPhone low-memory execution path in Chromium and verify real steps.
+  const mobile=await browser.newPage({viewport:{width:390,height:844},
+    userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1'});
+  try{
+    await mobile.goto('http://127.0.0.1:4173/?cpu=js',{waitUntil:'domcontentloaded',timeout:30000});
+    await mobile.waitForFunction(()=>document.querySelector('#verdict').textContent==='Выполняется'
+      && parseFloat(document.querySelector('#time').textContent)>0.1,
+      null,{timeout:120000});
+    console.log('LOW MEMORY JS ONNX R=0 OK');
+  }finally{await mobile.close();}
   await page.screenshot({path:'smoke.png',fullPage:true});
 }catch(err){
   console.error('BROWSER SMOKE ERROR:',err.message);
