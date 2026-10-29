@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Python motion dependencies
-        run: python -m pip install numpy pyyaml
+        run: python -m pip install numpy pyyaml onnx==1.19.1
       - name: Export original dance and walking policies
         run: python browser/scripts/prepare_assets.py --model-source _web_model_source/web/public/model --walking-source _walking_source
       - uses: actions/setup-node@v4
