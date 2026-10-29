@@ -1,4 +1,4 @@
-import * as ort from 'onnxruntime-web';
+import * as ort from 'onnxruntime-web/wasm';
 import {DT,healthState,alphaRef,mul,inv,yawQuat,torsoQuat,rot6} from './model.js';
 const PHYSICS_DT=0.002;
 const loadJson=async url=>{const r=await fetch(url);if(!r.ok)throw Error(url+' : HTTP '+r.status);return r.json()};
