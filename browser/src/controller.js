@@ -1,4 +1,13 @@
-import * as ort from 'onnxruntime-web/wasm';
+import {loadJsPolicy} from './js-inference.js';
+let ortPromise=null,wasmBase=null,useJs=false;
+async function getOrt(){
+  if(!ortPromise)ortPromise=import('onnxruntime-web/wasm').then(ort=>{
+    ort.env.wasm.numThreads=1;
+    ort.env.wasm.wasmPaths=new URL('ort/',wasmBase).href;
+    return ort;
+  });
+  return ortPromise;
+}
 import {DT,healthState,alphaRef,mul,inv,yawQuat,torsoQuat,rot6} from './model.js';
 const PHYSICS_DT=0.002;
 const loadJson=async url=>{const r=await fetch(url);if(!r.ok)throw Error(url+' : HTTP '+r.status);return r.json()};
@@ -20,9 +29,16 @@ export async function loadPreset(base,name,report){
   const cfg=await loadJson(new URL('deploy.json',url));
   const motion=walking?null:await gzJson(new URL('motion.json.gz',url));
   report('Загрузка ONNX: '+name);
-  const opts={executionProviders:['wasm']};
-  if(!walking)opts.externalData=[{path:'policy.onnx.data',data:new URL('policy.onnx.data',url).href}];
-  const session=await ort.InferenceSession.create(new URL('policy.onnx',url).href,opts);
+  let session;
+  if(useJs){
+    report('Легкий JS-инференс исходной ONNX-политики: '+name);
+    session=await loadJsPolicy(url);
+  }else{
+    const ort=await getOrt();
+    const opts={executionProviders:['wasm']};
+    if(!walking)opts.externalData=[{path:'policy.onnx.data',data:new URL('policy.onnx.data',url).href}];
+    session=await ort.InferenceSession.create(new URL('policy.onnx',url).href,opts);
+  }
   if(cfg.default_joint_pos.length!==29||cfg.stiffness.length!==29||
       cfg.damping.length!==29||cfg.actions.JointPositionAction.scale.length!==29||
       Math.abs(cfg.step_dt-DT)>1e-8)throw Error('Invalid Unitree G1 deploy configuration');
@@ -90,7 +106,9 @@ export async function step(runtime,preset,frame,state,limits,work){
     obs.set(state.action,125);
   }
   const input=preset.session.inputNames[0],output=preset.session.outputNames[0];
-  const predicted=await preset.session.run({[input]:new ort.Tensor('float32',obs,[1,obs.length])});
+  const feed=preset.session.backend==='js-fp32' ? {data:obs} :
+    new (await getOrt()).Tensor('float32',obs,[1,obs.length]);
+  const predicted=await preset.session.run({[input]:feed});
   const action=predicted[output].data;
   if(action.length!==29||!Array.from(action).every(Number.isFinite))throw Error('Invalid ONNX action');
   state.action.set(action);
@@ -133,7 +151,10 @@ export function scales(profile,R,refMax){
   const state=Array.from(profile,(S)=>healthState(R,S,kappa));
   return {limits:state.map(s=>s.u),state};
 }
-export function configureONNX(base){
-  ort.env.wasm.numThreads=1;
-  ort.env.wasm.wasmPaths=new URL('ort/',base).href;
+export function configureONNX(base,cpu){
+  wasmBase=base;
+  // Safari on 3 GB iPhones cannot reliably hold MuJoCo WASM and ORT WASM
+  // simultaneously. Run the same ONNX graph and fp32 weights with JS instead.
+  useJs=cpu==='js'||/iPhone|iPad|iPod/.test(self.navigator?.userAgent||'')||
+    (self.navigator?.platform==='MacIntel'&&self.navigator?.maxTouchPoints>1);
 }
