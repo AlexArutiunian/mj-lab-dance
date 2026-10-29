@@ -2,9 +2,11 @@
 """Export the three committed G1 ONNX policies and reference motions for browser use."""
 import argparse
 import gzip
+import hashlib
 import json
 import shutil
-from pathlib import Path
+import tarfile
+from pathlib import Path, PurePosixPath
 import numpy as np
 import yaml
 
@@ -32,6 +34,49 @@ def main():
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(source, dest)
+
+    # Bundle unchanged original STL meshes and XML into one versioned compressed
+    # asset. 37 small HTTP requests are slower than one cached gzip request.
+    files = manifest["files"]
+    if not files or "g1.xml" not in files or len(files) != len(set(files)):
+        raise ValueError("Invalid G1 asset manifest")
+    for rel in files:
+        name = PurePosixPath(rel)
+        if (name.is_absolute() or ".." in name.parts
+                or not (rel == "g1.xml" or rel.startswith("meshes/"))
+                or not (dest / rel).is_file()):
+            raise ValueError("Unsafe or missing G1 model asset: " + rel)
+
+    temp_archive = dest / "g1-assets.tmp"
+    with temp_archive.open("wb") as raw:
+        with gzip.GzipFile(fileobj=raw, mode="wb", filename="", mtime=0,
+                           compresslevel=6) as zipped:
+            with tarfile.open(fileobj=zipped, mode="w|") as archive:
+                for rel in files:
+                    path = dest / rel
+                    info = tarfile.TarInfo(rel)
+                    info.size = path.stat().st_size
+                    info.mtime = 0
+                    info.mode = 0o644
+                    with path.open("rb") as handle:
+                        archive.addfile(info, handle)
+
+    digest = hashlib.sha256(temp_archive.read_bytes()).hexdigest()[:16]
+    archive_name = f"g1-assets-{digest}.tar.gz"
+    temp_archive.rename(dest / archive_name)
+    (dest / "asset-bundle.json").write_text(json.dumps({
+        "archive": archive_name, "files": files, "sha256_prefix": digest
+    }, separators=(",", ":")))
+    original_bytes = sum(manifest["bytes"][rel] for rel in files)
+    packed_bytes = (dest / archive_name).stat().st_size
+    # Do not publish redundant binary/STL copies or the unused 35 MB MJB.
+    shutil.rmtree(dest / "meshes")
+    (dest / "g1.xml").unlink()
+    for unused in ("g1.mjb", "g1.mjb.gz"):
+        (dest / unused).unlink(missing_ok=True)
+    print(f"G1 model: {len(files)} source assets, {original_bytes} bytes -> "
+          f"{packed_bytes} gzip bytes ({packed_bytes / original_bytes:.1%})")
+
     for label, (name, motion_name) in PRESETS.items():
         folder = MIMIC / name
         target = args.output / "policies" / label
