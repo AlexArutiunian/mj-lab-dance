@@ -12,7 +12,11 @@ const microtask=()=>new Promise(r=>setTimeout(r,0));
 async function init(msg){
   base=msg.base;
   configureONNX(base);
+  // Prepare the initial 154D ONNX policy concurrently with WASM/model load
+  // instead of waiting until the scene has been parsed.
+  const initialPolicy=preset('short');
   world=await loadG1(base,notify);
+  await initialPolicy;
   postMessage({type:'ready',geoms:world.geoms},world.transfer);
   world.data.qpos.set([0,0,0.8,1,0,0,0],0);
   world.mj.mj_forward(world.model,world.data);
