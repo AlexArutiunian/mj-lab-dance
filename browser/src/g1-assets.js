@@ -4,7 +4,7 @@ import wasmUrl from '@mujoco/mujoco/mujoco.wasm?url';
 // Its content-addressed URL lets CacheStorage survive page reloads safely.
 async function fetchModelBundle(base,report){
   const root=new URL('model/',base);
-  const metadataResponse=await fetch(new URL('asset-bundle.json',root),{cache:'no-cache'});
+  const metadataResponse=await fetch(new URL('asset-bundle.json',root),{cache:'no-cache'}).catch(e=>{throw Error('G1 bundle metadata request: '+(e?.message||e))});
   if(!metadataResponse.ok)throw Error('G1 bundle manifest: HTTP '+metadataResponse.status);
   const info=await metadataResponse.json();
   if(!/^g1-assets-[a-f0-9]{16}[.]bin$/.test(info.archive)||
