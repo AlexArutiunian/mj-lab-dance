@@ -11,7 +11,7 @@ const notify=message=>postMessage({type:'status',message});
 const microtask=()=>new Promise(r=>setTimeout(r,0));
 async function init(msg){
   base=msg.base;
-  configureONNX(base);
+  configureONNX(base,msg.cpu);
   world=await loadG1(base,notify);
   postMessage({type:'ready',geoms:world.geoms},world.transfer);
   world.data.qpos.set([0,0,0.8,1,0,0,0],0);
