@@ -23,7 +23,7 @@ async function fetchModelBundle(base,report){
   }
   if(!packed){
     report('Загрузка сжатой модели G1');
-    const response=await fetch(url);
+    const response=await fetch(url).catch(e=>{throw Error('Binary G1 archive '+url.pathname+': '+(e?.message||e))});
     if(!response.ok)throw Error('G1 model archive: HTTP '+response.status);
     packed=await response.arrayBuffer();
     // Caching is best-effort, not part of the critical startup path.
