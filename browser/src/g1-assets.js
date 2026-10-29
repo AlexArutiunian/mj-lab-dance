@@ -70,8 +70,12 @@ export async function loadG1(base,report) {
   // Download the archive while WASM loads and compiles, not afterward.
   const archivePromise=fetchModelBundle(base,report);
   report('Загрузка MuJoCo WASM и модели G1');
-  const mjPromise=loadMujoco({locateFile:n=>n.endsWith('.wasm')?wasmUrl:n});
-  const [mj,bundle]=await Promise.all([mjPromise,archivePromise]);
+  const mjPromise=loadMujoco({locateFile:n=>n.endsWith('.wasm')?wasmUrl:n})
+    .catch(e=>{throw Error('MuJoCo WASM: '+(e?.message||String(e)))});
+  const [mj,bundle]=await Promise.all([
+    mjPromise,
+    archivePromise.catch(e=>{throw Error('G1 assets: '+(e?.message||String(e)))})
+  ]);
   mj.FS.mkdir('/g1');mj.FS.mkdir('/g1/meshes');
   installTarModel(mj,bundle.data,bundle.files);
   report('Геометрия G1 готова. Сборка MuJoCo...');
