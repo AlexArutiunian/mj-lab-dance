@@ -310,4 +310,4 @@ function animate(now){
   renderer.render(scene,camera);
 }
 requestAnimationFrame(animate);
-worker.postMessage({type:'init',base});
+worker.postMessage({type:'init',base,cpu:new URL(location.href).searchParams.get('cpu')});
